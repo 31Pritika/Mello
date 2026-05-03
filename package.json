@@ -10,6 +10,7 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@mapbox/search-js-web": "^1.5.1",
     "@supabase/supabase-js": "^2.104.1",
     "@tailwindcss/vite": "^4.2.4",
     "framer-motion": "^12.38.0",

@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { supabase } from '../SupabaseClient'
 import { useNavigate } from 'react-router-dom'
-
+import { CustomCursor } from '../ui/CustomCursor'
 const s = {
   page: { minHeight: '100vh', background: '#0A0706', padding: '2rem', fontFamily: 'Inter, sans-serif' },
   card: { maxWidth: '660px', margin: '0 auto', background: '#15100E', border: '1px solid rgba(196,84,122,0.15)', borderRadius: '4px', padding: '2.5rem' },
@@ -39,6 +39,8 @@ export default function Onboarding() {
   const [selected, setSelected] = useState([])
   const [activeCat, setActiveCat] = useState('movies')
   const [loading, setLoading] = useState(false)
+  const [suggestions, setSuggestions] = useState([])
+  const [showSuggestions, setShowSuggestions] = useState(false)
   const navigate = useNavigate()
 
   const TMDB = import.meta.env.VITE_TMDB_KEY
@@ -47,6 +49,23 @@ export default function Onboarding() {
   const GB = import.meta.env.VITE_GOOGLE_BOOKS_KEY
   const accent = cats.find(c => c.id === activeCat)?.accent
 
+  async function searchCities(query) {
+    if (query.length < 2) { setSuggestions([]); return }
+    try {
+      const res = await fetch(`https://nominatim.openstreetmap.org/search?q=${query}&format=json&addressdetails=1&limit=6&featuretype=city`)
+      const data = await res.json()
+      const formatted = data.map(item => {
+        const a = item.address
+        const parts = [a.city || a.town || a.village || a.county, a.state, a.country].filter(Boolean)
+        return { label: parts.join(', '), short: a.city || a.town || a.village || a.county || a.state }
+      })
+      // dedupe
+      const unique = formatted.filter((v, i, arr) => arr.findIndex(t => t.label === v.label) === i)
+      setSuggestions(unique)
+      setShowSuggestions(true)
+    } catch(e) { console.error(e) }
+  }
+
   async function doSearch() {
     if (!search) return
     setLoading(true); setResults([])
@@ -54,14 +73,17 @@ export default function Onboarding() {
       if (activeCat === 'movies') {
         const d = await (await fetch(`https://api.themoviedb.org/3/search/movie?api_key=${TMDB}&query=${search}`)).json()
         setResults(d.results.slice(0,8).map(m => ({ item_id: String(m.id), item_name: m.title, category: 'movies', cover_image: m.poster_path ? `https://image.tmdb.org/t/p/w200${m.poster_path}` : null })))
-      } else if (activeCat === 'shows') {
+      } 
+      else if (activeCat === 'shows') {
         const d = await (await fetch(`https://api.themoviedb.org/3/search/tv?api_key=${TMDB}&query=${search}`)).json()
         setResults(d.results.slice(0,8).map(s => ({ item_id: String(s.id), item_name: s.name, category: 'shows', cover_image: s.poster_path ? `https://image.tmdb.org/t/p/w200${s.poster_path}` : null })))
-      } else if (activeCat === 'music') {
+      } 
+      else if (activeCat === 'music') {
         const t = await (await fetch('https://accounts.spotify.com/api/token', { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'Authorization': 'Basic ' + btoa(`${SP_ID}:${SP_SEC}`) }, body: 'grant_type=client_credentials' })).json()
         const d = await (await fetch(`https://api.spotify.com/v1/search?q=${search}&type=artist&limit=8`, { headers: { Authorization: `Bearer ${t.access_token}` } })).json()
         setResults(d.artists.items.map(a => ({ item_id: a.id, item_name: a.name, category: 'music', cover_image: a.images?.[0]?.url || null })))
-      } else {
+      } 
+      else {
         const d = await (await fetch(`https://www.googleapis.com/books/v1/volumes?q=${search}&key=${GB}&maxResults=8`)).json()
         setResults((d.items||[]).map(b => ({ item_id: b.id, item_name: b.volumeInfo.title, category: 'books', cover_image: b.volumeInfo.imageLinks?.thumbnail || null })))
       }
@@ -88,8 +110,44 @@ export default function Onboarding() {
         <div style={s.logo}>mello</div>
         <div style={s.step}>Step 1 of 2</div>
         <div style={s.heading}>Where are you based?</div>
-        <div style={s.hint}>We'll find people with your taste nearby — city level, nothing more.</div>
-        <input placeholder="Your city" value={city} onChange={e => setCity(e.target.value)} onKeyDown={e => e.key === 'Enter' && city && setStep(2)} style={s.input} />
+        <div style={s.hint}>We'll find people with your taste nearby.</div>
+
+<div style={{ position: 'relative', marginBottom: '1rem' }}>
+  <input
+    placeholder="Start typing your city..."
+    value={city}
+    onChange={e => { setCity(e.target.value); searchCities(e.target.value) }}
+    onBlur={() => setTimeout(() => setShowSuggestions(false), 150)}
+    onFocus={() => suggestions.length > 0 && setShowSuggestions(true)}
+    style={{ ...s.input, margin: 0, width: '100%' }}
+  />
+  {showSuggestions && suggestions.length > 0 && (
+    <div style={{
+      position: 'absolute', top: '100%', left: 0, right: 0,
+      background: '#1C1512',
+      border: '1px solid rgba(196,84,122,0.2)',
+      borderTop: 'none', borderRadius: '0 0 2px 2px',
+      zIndex: 50, maxHeight: '220px', overflowY: 'auto'
+    }}>
+      {suggestions.map((s, i) => (
+        <div
+          key={i}
+          onMouseDown={() => { setCity(s.label); setSuggestions([]); setShowSuggestions(false) }}
+          style={{
+            padding: '10px 14px', cursor: 'pointer',
+            borderBottom: '1px solid rgba(196,84,122,0.08)',
+            transition: 'background 0.15s ease'
+          }}
+          onMouseEnter={e => e.currentTarget.style.background = 'rgba(196,84,122,0.08)'}
+          onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+        >
+          <div style={{ fontSize: '0.85rem', color: '#EFECE6' }}>{s.short}</div>
+          <div style={{ fontSize: '0.75rem', color: '#7D746D', marginTop: '2px' }}>{s.label}</div>
+        </div>
+      ))}
+    </div>
+  )}
+</div>        
         <button onClick={() => setStep(2)} disabled={!city} style={s.btn(!!city)}>Continue →</button>
       </div>
       <style>{`@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,500&family=Inter:wght@300;400;500&display=swap'); input { cursor: text !important; }`}</style>

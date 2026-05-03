@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { supabase } from '../SupabaseClient'
 import { useNavigate } from 'react-router-dom'
+import { CustomCursor } from '../ui/CustomCursor'
 
 const s = {
   page: { minHeight: '100vh', background: '#0A0706', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '2rem', fontFamily: 'Inter, sans-serif' },
@@ -65,6 +66,7 @@ export default function Auth() {
         </div>
       </div>
       <style>{`@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,500&family=Inter:wght@300;400;500&display=swap'); * { cursor: default; } input { cursor: text !important; }`}</style>
+      <CustomCursor />
     </div>
   )
 }
