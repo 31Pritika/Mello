@@ -1,26 +1,15 @@
 import { useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { CustomCursor } from '../ui/CustomCursor.jsx'
 
 export default function Landing() {
-  const cursorRef = useRef(null)
   const attuneRef = useRef(null)
   const navigate = useNavigate()
-
-  useEffect(() => {
-    const cursor = cursorRef.current
-    const handleMove = e => {
-      cursor.style.left = e.clientX + 'px'
-      cursor.style.top = e.clientY + 'px'
-    }
-    document.addEventListener('mousemove', handleMove)
-    return () => document.removeEventListener('mousemove', handleMove)
-  }, [])
-
   const frames = [
     { image: 'https://images.unsplash.com/photo-1478720568477-152d9b164e26?w=800', emoji: '🎬', cat: 'Cinema', title: 'Chungking Express', user: 'anika_s', tags: ['Melancholy', '1994', 'Rewatching'] },
-    { image: "src/519058854.jpg", cat: 'Music', title: 'Justin Beiber — Company', user: 'prish.a', tags: ['Contemporary', 'R&B', 'Late Night'] },
-    { image: "src/a97d6f2b32664f3b6d641a30eda9590a.jpg", emoji: '📚', cat: 'Reads', title: 'Never Let Me Go', user: 'meera.v', tags: ['Dark Academia', 'Quiet Dread'] },
-    { image: "src/539d62f4f992649446ec8b5fe0e67944.jpg", emoji: '📺', cat: 'Shows', title: 'Dark — Season 3', user: 'arjun.t', tags: ['Anxiety', 'Obsession', 'Just started'] },
+    { image: "src/assets/519058854.jpg", cat: 'Music', title: 'Justin Beiber — Company', user: 'prish.a', tags: ['Contemporary', 'R&B', 'Late Night'] },
+    { image: "src/assets/a97d6f2b32664f3b6d641a30eda9590a.jpg", emoji: '📚', cat: 'Reads', title: 'Never Let Me Go', user: 'meera.v', tags: ['Dark Academia', 'Quiet Dread'] },
+    { image: "src/assets/539d62f4f992649446ec8b5fe0e67944.jpg", emoji: '📺', cat: 'Shows', title: 'Dark — Season 3', user: 'arjun.t', tags: ['Anxiety', 'Obsession', 'Just started'] },
   ]
 
   const circles = [
@@ -37,18 +26,9 @@ export default function Landing() {
   ]
 
   return (
-    <div style={{ background: '#0A0706', minHeight: '100vh', color: '#EFECE6', fontFamily: 'Inter, sans-serif', cursor: 'none', overflowX: 'hidden', position: 'relative' }}>
+      <div style={{ background: '#0A0706', minHeight: '100vh', color: '#EFECE6', fontFamily: 'Inter, sans-serif', cursor: 'none', overflowX: 'hidden', position: 'relative' }}>
 
-      {/* Custom cursor */}
-      <div ref={cursorRef} style={{
-        position: 'fixed', width: '20px', height: '20px',
-        background: '#C4547A', borderRadius: '50%',
-        pointerEvents: 'none', zIndex: 9999,
-        filter: 'blur(3px)', mixBlendMode: 'screen',
-        transform: 'translate(-50%, -50%)',
-        transition: 'width 0.3s ease, height 0.3s ease',
-      }} />
-
+        <CustomCursor />
       {/* Ambient glow */}
       <div style={{
         position: 'fixed', top: '50%', left: '50%',
@@ -110,7 +90,7 @@ export default function Landing() {
           color: '#7D746D', textTransform: 'uppercase',
           maxWidth: '500px', lineHeight: 1.8, marginBottom: '2.5rem'
         }}>
-          A quiet corner for niche taste. No algorithms. No noise. Just your people.
+         A calm space for what you love. No algorithms. No noise. Just you.
         </p>
         <div style={{ display: 'flex', gap: '1rem' }}>
           <button onClick={() => navigate('/auth')} style={{
