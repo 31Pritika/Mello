@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { supabase } from '../SupabaseClient'
 import { useNavigate } from 'react-router-dom'
 import { CustomCursor } from '../ui/CustomCursor'
@@ -41,6 +41,7 @@ export default function Onboarding() {
   const [loading, setLoading] = useState(false)
   const [suggestions, setSuggestions] = useState([])
   const [showSuggestions, setShowSuggestions] = useState(false)
+  const debounceRef = useRef(null)
   const navigate = useNavigate()
 
   const TMDB = import.meta.env.VITE_TMDB_KEY
@@ -49,22 +50,40 @@ export default function Onboarding() {
   const GB = import.meta.env.VITE_GOOGLE_BOOKS_KEY
   const accent = cats.find(c => c.id === activeCat)?.accent
 
-  async function searchCities(query) {
-    if (query.length < 2) { setSuggestions([]); return }
+function searchCities(query) {
+  if (debounceRef.current) clearTimeout(debounceRef.current)
+  if (query.length < 2) { setSuggestions([]); setShowSuggestions(false); return }
+
+  debounceRef.current = setTimeout(async () => {
     try {
-      const res = await fetch(`https://nominatim.openstreetmap.org/search?q=${query}&format=json&addressdetails=1&limit=6&featuretype=city`)
+      const res = await fetch(
+        `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(query)}&format=json&addressdetails=1&limit=8`,
+        { headers: { 'Accept-Language': 'en' } }
+      )
       const data = await res.json()
-      const formatted = data.map(item => {
+
+      const seen = new Set()
+      const formatted = []
+
+      for (const item of data) {
         const a = item.address
-        const parts = [a.city || a.town || a.village || a.county, a.state, a.country].filter(Boolean)
-        return { label: parts.join(', '), short: a.city || a.town || a.village || a.county || a.state }
-      })
-      // dedupe
-      const unique = formatted.filter((v, i, arr) => arr.findIndex(t => t.label === v.label) === i)
-      setSuggestions(unique)
-      setShowSuggestions(true)
-    } catch(e) { console.error(e) }
-  }
+        const city = a.city || a.town || a.municipality || a.village || a.suburb
+        const state = a.state || a.region
+        const country = a.country
+        if (!city) continue
+        const label = [city, state, country].filter(Boolean).join(', ')
+        if (seen.has(label)) continue
+        seen.add(label)
+        formatted.push({ label, city, state, country })
+      }
+
+      setSuggestions(formatted)
+      setShowSuggestions(formatted.length > 0)
+    } catch(e) {
+      console.error(e)
+    }
+  }, 350)
+}
 
   async function doSearch() {
     if (!search) return
