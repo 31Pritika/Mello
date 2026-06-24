@@ -1,6 +1,7 @@
 import { useEffect, useState, useRef } from 'react'
 import { supabase } from '../SupabaseClient'
-import { assignToCircles, getUserCircles, getCirclePosts, createPost, renameCircle } from '../utils/matching'
+import { assignToCircles } from '../utils/matching'
+import { loadCircles, getCirclePosts, createPost, renameCircle } from '../utils/circles'
 import { useNavigate } from 'react-router-dom'
 
 const CATS = {
@@ -221,7 +222,7 @@ export default function Dashboard() {
 
       await assignToCircles(user.id)
 
-      const userCircles = await getUserCircles(user.id)
+      const userCircles = await loadCircles(user.id)
       setCircles(userCircles)
 
       if (userCircles.length > 0) {
