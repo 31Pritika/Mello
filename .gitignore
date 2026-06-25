@@ -24,5 +24,8 @@ dist-ssr
 *.sw?
 
 .env
-.env
-.env
+./backend/.env
+./.env
+venv/
+node_modules/
+__pycache__/
