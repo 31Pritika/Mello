@@ -1,7 +1,7 @@
-import { useRef, useState } from 'react'
-import { supabase } from '../SupabaseClient'
+import { useState, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { CustomCursor } from '../ui/CustomCursor'
+import { searchMovies, searchShows, searchMusic, searchBooks, saveInterests } from '../utils/api'
+
 const s = {
   page: { minHeight: '100vh', background: '#0A0706', padding: '2rem', fontFamily: 'Inter, sans-serif' },
   card: { maxWidth: '660px', margin: '0 auto', background: '#15100E', border: '1px solid rgba(196,84,122,0.15)', borderRadius: '4px', padding: '2.5rem' },
@@ -31,96 +31,83 @@ const cats = [
   { id: 'books', label: 'Books', emoji: '📚', accent: '#9A8C98' },
 ]
 
+const searchFns = {
+  movies: searchMovies,
+  shows: searchShows,
+  music: searchMusic,
+  books: searchBooks
+}
+
 export default function Onboarding() {
   const [step, setStep] = useState(1)
   const [city, setCity] = useState('')
+  const [state, setState] = useState('')
+  const [country, setCountry] = useState('')
+  const [suggestions, setSuggestions] = useState([])
+  const [showSuggestions, setShowSuggestions] = useState(false)
   const [search, setSearch] = useState('')
   const [results, setResults] = useState([])
   const [selected, setSelected] = useState([])
   const [activeCat, setActiveCat] = useState('movies')
   const [loading, setLoading] = useState(false)
-  const [suggestions, setSuggestions] = useState([])
-  const [showSuggestions, setShowSuggestions] = useState(false)
   const debounceRef = useRef(null)
   const navigate = useNavigate()
-
-  const TMDB = import.meta.env.VITE_TMDB_KEY
-  const SP_ID = import.meta.env.VITE_SPOTIFY_CLIENT_ID
-  const SP_SEC = import.meta.env.VITE_SPOTIFY_CLIENT_SECRET
-  const GB = import.meta.env.VITE_GOOGLE_BOOKS_KEY
+  const GEO = import.meta.env.VITE_GEOAPIFY_KEY
   const accent = cats.find(c => c.id === activeCat)?.accent
 
-function searchCities(query) {
-  if (debounceRef.current) clearTimeout(debounceRef.current)
-  if (query.length < 2) { setSuggestions([]); setShowSuggestions(false); return }
-
-  debounceRef.current = setTimeout(async () => {
-    try {
-      const res = await fetch(
-        `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(query)}&format=json&addressdetails=1&limit=8`,
-        { headers: { 'Accept-Language': 'en' } }
-      )
-      const data = await res.json()
-
-      const seen = new Set()
-      const formatted = []
-
-      for (const item of data) {
-        const a = item.address
-        const city = a.city || a.town || a.municipality || a.village || a.suburb
-        const state = a.state || a.region
-        const country = a.country
-        if (!city) continue
-        const label = [city, state, country].filter(Boolean).join(', ')
-        if (seen.has(label)) continue
-        seen.add(label)
-        formatted.push({ label, city, state, country })
-      }
-
-      setSuggestions(formatted)
-      setShowSuggestions(formatted.length > 0)
-    } catch(e) {
-      console.error(e)
-    }
-  }, 350)
-}
+  function searchCities(query) {
+    if (debounceRef.current) clearTimeout(debounceRef.current)
+    if (query.length < 2) { setSuggestions([]); setShowSuggestions(false); return }
+    debounceRef.current = setTimeout(async () => {
+      try {
+        const res = await fetch(`https://api.geoapify.com/v1/geocode/autocomplete?text=${encodeURIComponent(query)}&type=city&limit=6&format=json&apiKey=${GEO}`)
+        const data = await res.json()
+        const seen = new Set()
+        const formatted = []
+        for (const item of data.results || []) {
+          const cityName = item.city || item.county
+          const stateName = item.state
+          const countryName = item.country
+          if (!cityName) continue
+          const label = [cityName, stateName, countryName].filter(Boolean).join(', ')
+          if (seen.has(label)) continue
+          seen.add(label)
+          formatted.push({ label, city: cityName, state: stateName, country: countryName })
+        }
+        setSuggestions(formatted)
+        setShowSuggestions(formatted.length > 0)
+      } catch(e) { console.error(e) }
+    }, 350)
+  }
 
   async function doSearch() {
     if (!search) return
     setLoading(true); setResults([])
     try {
-      if (activeCat === 'movies') {
-        const d = await (await fetch(`https://api.themoviedb.org/3/search/movie?api_key=${TMDB}&query=${search}`)).json()
-        setResults(d.results.slice(0,8).map(m => ({ item_id: String(m.id), item_name: m.title, category: 'movies', cover_image: m.poster_path ? `https://image.tmdb.org/t/p/w200${m.poster_path}` : null })))
-      } 
-      else if (activeCat === 'shows') {
-        const d = await (await fetch(`https://api.themoviedb.org/3/search/tv?api_key=${TMDB}&query=${search}`)).json()
-        setResults(d.results.slice(0,8).map(s => ({ item_id: String(s.id), item_name: s.name, category: 'shows', cover_image: s.poster_path ? `https://image.tmdb.org/t/p/w200${s.poster_path}` : null })))
-      } 
-      else if (activeCat === 'music') {
-        const t = await (await fetch('https://accounts.spotify.com/api/token', { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'Authorization': 'Basic ' + btoa(`${SP_ID}:${SP_SEC}`) }, body: 'grant_type=client_credentials' })).json()
-        const d = await (await fetch(`https://api.spotify.com/v1/search?q=${search}&type=artist&limit=8`, { headers: { Authorization: `Bearer ${t.access_token}` } })).json()
-        setResults(d.artists.items.map(a => ({ item_id: a.id, item_name: a.name, category: 'music', cover_image: a.images?.[0]?.url || null })))
-      } 
-      else {
-        const d = await (await fetch(`https://www.googleapis.com/books/v1/volumes?q=${search}&key=${GB}&maxResults=8`)).json()
-        setResults((d.items||[]).map(b => ({ item_id: b.id, item_name: b.volumeInfo.title, category: 'books', cover_image: b.volumeInfo.imageLinks?.thumbnail || null })))
-      }
+      const fn = searchFns[activeCat]
+      const data = await fn(search)
+      setResults(data)
     } catch(e) { console.error(e) }
     setLoading(false)
   }
 
   function toggle(item) {
-    const exists = selected.find(s => s.item_id === item.item_id && s.category === item.category)
-    setSelected(exists ? selected.filter(s => !(s.item_id === item.item_id && s.category === item.category)) : [...selected, item])
+    const exists = selected.find(s => s.external_id === item.external_id && s.source === item.source)
+    setSelected(exists
+      ? selected.filter(s => !(s.external_id === item.external_id && s.source === item.source))
+      : [...selected, item]
+    )
   }
 
   async function finish() {
     setLoading(true)
-    const { data: { user } } = await supabase.auth.getUser()
-    await supabase.from('profiles').update({ city }).eq('id', user.id)
-    if (selected.length > 0) await supabase.from('interests').insert(selected.map(i => ({ ...i, user_id: user.id })))
-    navigate('/dashboard')
+    try {
+      await saveInterests(selected, city, state, country)
+      navigate('/dashboard')
+    } catch(e) {
+      console.error(e)
+    }
+    setLoading(false)
   }
 
   if (step === 1) return (
@@ -130,43 +117,30 @@ function searchCities(query) {
         <div style={s.step}>Step 1 of 2</div>
         <div style={s.heading}>Where are you based?</div>
         <div style={s.hint}>We'll find people with your taste nearby.</div>
-
-<div style={{ position: 'relative', marginBottom: '1rem' }}>
-  <input
-    placeholder="Start typing your city..."
-    value={city}
-    onChange={e => { setCity(e.target.value); searchCities(e.target.value) }}
-    onBlur={() => setTimeout(() => setShowSuggestions(false), 150)}
-    onFocus={() => suggestions.length > 0 && setShowSuggestions(true)}
-    style={{ ...s.input, margin: 0, width: '100%' }}
-  />
-  {showSuggestions && suggestions.length > 0 && (
-    <div style={{
-      position: 'absolute', top: '100%', left: 0, right: 0,
-      background: '#1C1512',
-      border: '1px solid rgba(196,84,122,0.2)',
-      borderTop: 'none', borderRadius: '0 0 2px 2px',
-      zIndex: 50, maxHeight: '220px', overflowY: 'auto'
-    }}>
-      {suggestions.map((s, i) => (
-        <div
-          key={i}
-          onMouseDown={() => { setCity(s.label); setSuggestions([]); setShowSuggestions(false) }}
-          style={{
-            padding: '10px 14px', cursor: 'pointer',
-            borderBottom: '1px solid rgba(196,84,122,0.08)',
-            transition: 'background 0.15s ease'
-          }}
-          onMouseEnter={e => e.currentTarget.style.background = 'rgba(196,84,122,0.08)'}
-          onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
-        >
-          <div style={{ fontSize: '0.85rem', color: '#EFECE6' }}>{s.short}</div>
-          <div style={{ fontSize: '0.75rem', color: '#7D746D', marginTop: '2px' }}>{s.label}</div>
+        <div style={{ position: 'relative', marginBottom: '1rem' }}>
+          <input
+            placeholder="Start typing your city..."
+            value={city}
+            onChange={e => { setCity(e.target.value); searchCities(e.target.value) }}
+            onBlur={() => setTimeout(() => setShowSuggestions(false), 150)}
+            style={{ ...s.input, margin: 0, width: '100%' }}
+          />
+          {showSuggestions && suggestions.length > 0 && (
+            <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, background: '#1C1512', border: '1px solid rgba(196,84,122,0.2)', borderTop: 'none', borderRadius: '0 0 2px 2px', zIndex: 50, maxHeight: '220px', overflowY: 'auto' }}>
+              {suggestions.map((suggestion, i) => (
+                <div key={i}
+                  onMouseDown={() => { setCity(suggestion.city); setState(suggestion.state || ''); setCountry(suggestion.country || ''); setSuggestions([]); setShowSuggestions(false) }}
+                  style={{ padding: '10px 14px', cursor: 'pointer', borderBottom: '1px solid rgba(196,84,122,0.08)' }}
+                  onMouseEnter={e => e.currentTarget.style.background = 'rgba(196,84,122,0.08)'}
+                  onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+                >
+                  <div style={{ fontSize: '0.85rem', color: '#EFECE6' }}>{suggestion.city}</div>
+                  <div style={{ fontSize: '0.75rem', color: '#7D746D', marginTop: '2px' }}>{suggestion.label}</div>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
-      ))}
-    </div>
-  )}
-</div>        
         <button onClick={() => setStep(2)} disabled={!city} style={s.btn(!!city)}>Continue →</button>
       </div>
       <style>{`@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,500&family=Inter:wght@300;400;500&display=swap'); input { cursor: text !important; }`}</style>
@@ -179,10 +153,7 @@ function searchCities(query) {
         <div style={s.logo}>mello</div>
         <div style={s.step}>Step 2 of 2</div>
         <div style={s.heading}>What moves you?</div>
-        <div style={s.hint}>
-          Pick at least 5 things you love —{' '}
-          <span style={{ color: accent }}>{selected.length} selected</span>
-        </div>
+        <div style={s.hint}>Pick at least 5 things you love — <span style={{ color: accent }}>{selected.length} selected</span></div>
 
         <div style={s.tabs}>
           {cats.map(c => (
@@ -201,14 +172,14 @@ function searchCities(query) {
 
         <div style={s.grid}>
           {results.map(item => {
-            const isSel = selected.find(s => s.item_id === item.item_id && s.category === item.category)
+            const isSel = selected.find(s => s.external_id === item.external_id && s.source === item.source)
             return (
-              <div key={item.item_id} onClick={() => toggle(item)} style={s.frameCard(isSel, accent)}>
+              <div key={`${item.source}-${item.external_id}`} onClick={() => toggle(item)} style={s.frameCard(isSel, accent)}>
                 {item.cover_image
-                  ? <img src={item.cover_image} alt={item.item_name} style={s.frameImg} />
-                  : <div style={s.framePlaceholder}>{cats.find(c => c.id === item.category)?.emoji}</div>
+                  ? <img src={item.cover_image} alt={item.title} style={s.frameImg} />
+                  : <div style={s.framePlaceholder}>{cats.find(c => c.id === activeCat)?.emoji}</div>
                 }
-                <div style={s.frameTitle}>{item.item_name}</div>
+                <div style={s.frameTitle}>{item.title}</div>
               </div>
             )
           })}
@@ -220,7 +191,7 @@ function searchCities(query) {
             <div style={s.pills}>
               {selected.map(item => {
                 const c = cats.find(c => c.id === item.category)
-                return <span key={`${item.category}-${item.item_id}`} onClick={() => toggle(item)} style={s.pill(c.accent)}>{item.item_name} ✕</span>
+                return <span key={`${item.source}-${item.external_id}`} onClick={() => toggle(item)} style={s.pill(c?.accent || '#C4547A')}>{item.title} ✕</span>
               })}
             </div>
           </>

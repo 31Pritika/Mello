@@ -1,8 +1,9 @@
 import { useEffect, useState, useRef } from 'react'
 import { supabase } from '../SupabaseClient'
 import { assignToCircles } from '../utils/matching'
-import { loadCircles, getCirclePosts, createPost, renameCircle } from '../utils/circles'
+import { getCirclePosts, createPost, renameCircle, getMyCircles } from '../utils/circles'
 import { useNavigate } from 'react-router-dom'
+import { getStoredUser, logout as apiLogout } from '../utils/api'
 
 const CATS = {
   movies: { emoji: '🎬', accent: '#E0A458', label: 'Cinema' },
@@ -215,24 +216,20 @@ export default function Dashboard() {
 
   // ── init ────────────────────────────────────────────────────────────────────
   useEffect(() => {
-    async function init() {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) { navigate('/auth'); return }
-      setUser(user)
-
-      await assignToCircles(user.id)
-
-      const userCircles = await loadCircles(user.id)
-      setCircles(userCircles)
-
-      if (userCircles.length > 0) {
-        setActiveCircle(userCircles[0])
-        await loadPosts(userCircles[0].id)
-      }
-
-      setLoading(false)
+  async function init() {
+    const storedUser = getStoredUser()
+    if (!storedUser) { navigate('/auth'); return }
+    setUser(storedUser)
+    await assignToCircles()
+    const userCircles = await getMyCircles()
+    setCircles(userCircles)
+    if (userCircles.length > 0) {
+      setActiveCircle(userCircles[0])
+      await loadPosts(userCircles[0].id)
     }
-    init()
+    setLoading(false)
+  }
+  init()
   }, [])
 
   // ── focus rename input when it opens ────────────────────────────────────────
@@ -316,9 +313,9 @@ export default function Dashboard() {
   }
 
   async function logout() {
-    await supabase.auth.signOut()
-    navigate('/auth')
-  }
+  apiLogout()
+  navigate('/auth')
+}
 
   const cat = activeCircle
     ? (CATS[activeCircle.category] || { emoji: '✦', accent: '#C4547A', label: activeCircle.category })
