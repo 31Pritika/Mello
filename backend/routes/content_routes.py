@@ -1,11 +1,15 @@
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 from database import get_db
-from models import User, ContentCache, Interest
+from models import User
 from auth import get_current_user
-from schemas import SaveInterestRequest
+from schemas import (
+    SaveInterestRequest, SaveInterestResponse,
+    ContentOut, InterestOut
+)
+from repositories import content_repo, interest_repo, user_repo
+from typing import List
 import httpx, os, base64
-from datetime import datetime
 
 router = APIRouter(prefix="/content", tags=["content"])
 
@@ -15,56 +19,31 @@ SPOTIFY_CLIENT_SECRET = os.getenv("SPOTIFY_CLIENT_SECRET")
 GOOGLE_BOOKS_KEY = os.getenv("GOOGLE_BOOKS_KEY")
 
 async def get_spotify_token():
-    auth = base64.b64encode(f"{SPOTIFY_CLIENT_ID}:{SPOTIFY_CLIENT_SECRET}".encode()).decode()
+    auth = base64.b64encode(
+        f"{SPOTIFY_CLIENT_ID}:{SPOTIFY_CLIENT_SECRET}".encode()
+    ).decode()
     async with httpx.AsyncClient() as client:
         res = await client.post(
             "https://accounts.spotify.com/api/token",
-            headers={"Authorization": f"Basic {auth}", "Content-Type": "application/x-www-form-urlencoded"},
+            headers={
+                "Authorization": f"Basic {auth}",
+                "Content-Type": "application/x-www-form-urlencoded"
+            },
             data={"grant_type": "client_credentials"}
         )
     return res.json()["access_token"]
 
-def get_or_create_content(db: Session, external_id: str, source: str, data: dict) -> ContentCache:
-    content = db.query(ContentCache).filter(
-        ContentCache.external_id == external_id,
-        ContentCache.source == source
-    ).first()
-
-    if content:
-        # Update cache if older than 7 days
-        age = (datetime.utcnow() - content.last_fetched_at).days
-        if age > 7:
-            for k, v in data.items():
-                setattr(content, k, v)
-            content.last_fetched_at = datetime.utcnow()
-            db.commit()
-        return content
-
-    content = ContentCache(external_id=external_id, source=source, **data)
-    db.add(content)
-    db.commit()
-    db.refresh(content)
-    return content
-
-@router.get("/search/movies")
+@router.get("/search/movies", response_model=List[ContentOut])
 async def search_movies(q: str = Query(...), db: Session = Depends(get_db)):
-    # Check cache first
-    cached = db.query(ContentCache).filter(
-        ContentCache.source == "tmdb_movie",
-        ContentCache.title.ilike(f"%{q}%")
-    ).limit(8).all()
-
+    cached = content_repo.search_cache(db, "tmdb_movie", q)
     if cached:
-        return [_format_content(c, "movies") for c in cached]
-
-    # Hit API
+        return [ContentOut.from_cache(c, "movies") for c in cached]
     async with httpx.AsyncClient() as client:
         res = await client.get(
-            f"https://api.themoviedb.org/3/search/movie",
+            "https://api.themoviedb.org/3/search/movie",
             params={"api_key": TMDB_KEY, "query": q}
         )
     results = res.json().get("results", [])[:8]
-
     output = []
     for m in results:
         data = {
@@ -76,27 +55,21 @@ async def search_movies(q: str = Query(...), db: Session = Depends(get_db)):
             "genres": [],
             "extra_data": {"popularity": m.get("popularity")}
         }
-        content = get_or_create_content(db, str(m["id"]), "tmdb_movie", data)
-        output.append(_format_content(content, "movies"))
+        content = content_repo.get_or_create(db, str(m["id"]), "tmdb_movie", data)
+        output.append(ContentOut.from_cache(content, "movies"))
     return output
 
-@router.get("/search/shows")
+@router.get("/search/shows", response_model=List[ContentOut])
 async def search_shows(q: str = Query(...), db: Session = Depends(get_db)):
-    cached = db.query(ContentCache).filter(
-        ContentCache.source == "tmdb_show",
-        ContentCache.title.ilike(f"%{q}%")
-    ).limit(8).all()
-
+    cached = content_repo.search_cache(db, "tmdb_show", q)
     if cached:
-        return [_format_content(c, "shows") for c in cached]
-
+        return [ContentOut.from_cache(c, "shows") for c in cached]
     async with httpx.AsyncClient() as client:
         res = await client.get(
-            f"https://api.themoviedb.org/3/search/tv",
+            "https://api.themoviedb.org/3/search/tv",
             params={"api_key": TMDB_KEY, "query": q}
         )
     results = res.json().get("results", [])[:8]
-
     output = []
     for s in results:
         data = {
@@ -108,20 +81,15 @@ async def search_shows(q: str = Query(...), db: Session = Depends(get_db)):
             "genres": [],
             "extra_data": {}
         }
-        content = get_or_create_content(db, str(s["id"]), "tmdb_show", data)
-        output.append(_format_content(content, "shows"))
+        content = content_repo.get_or_create(db, str(s["id"]), "tmdb_show", data)
+        output.append(ContentOut.from_cache(content, "shows"))
     return output
 
-@router.get("/search/music")
+@router.get("/search/music", response_model=List[ContentOut])
 async def search_music(q: str = Query(...), db: Session = Depends(get_db)):
-    cached = db.query(ContentCache).filter(
-        ContentCache.source == "spotify_artist",
-        ContentCache.title.ilike(f"%{q}%")
-    ).limit(8).all()
-
+    cached = content_repo.search_cache(db, "spotify_artist", q)
     if cached:
-        return [_format_content(c, "music") for c in cached]
-
+        return [ContentOut.from_cache(c, "music") for c in cached]
     token = await get_spotify_token()
     async with httpx.AsyncClient() as client:
         res = await client.get(
@@ -130,36 +98,32 @@ async def search_music(q: str = Query(...), db: Session = Depends(get_db)):
             headers={"Authorization": f"Bearer {token}"}
         )
     artists = res.json().get("artists", {}).get("items", [])
-
     output = []
     for a in artists:
         data = {
             "title": a["name"],
             "cover_image": a["images"][0]["url"] if a.get("images") else None,
             "genres": a.get("genres", []),
-            "extra_data": {"popularity": a.get("popularity"), "followers": a.get("followers", {}).get("total")}
+            "extra_data": {
+                "popularity": a.get("popularity"),
+                "followers": a.get("followers", {}).get("total")
+            }
         }
-        content = get_or_create_content(db, a["id"], "spotify_artist", data)
-        output.append(_format_content(content, "music"))
+        content = content_repo.get_or_create(db, a["id"], "spotify_artist", data)
+        output.append(ContentOut.from_cache(content, "music"))
     return output
 
-@router.get("/search/books")
+@router.get("/search/books", response_model=List[ContentOut])
 async def search_books(q: str = Query(...), db: Session = Depends(get_db)):
-    cached = db.query(ContentCache).filter(
-        ContentCache.source == "google_books",
-        ContentCache.title.ilike(f"%{q}%")
-    ).limit(8).all()
-
+    cached = content_repo.search_cache(db, "google_books", q)
     if cached:
-        return [_format_content(c, "books") for c in cached]
-
+        return [ContentOut.from_cache(c, "books") for c in cached]
     async with httpx.AsyncClient() as client:
         res = await client.get(
             "https://www.googleapis.com/books/v1/volumes",
             params={"q": q, "key": GOOGLE_BOOKS_KEY, "maxResults": 8}
         )
     items = res.json().get("items", [])
-
     output = []
     for b in items:
         info = b.get("volumeInfo", {})
@@ -173,80 +137,36 @@ async def search_books(q: str = Query(...), db: Session = Depends(get_db)):
             "description": info.get("description"),
             "extra_data": {"page_count": info.get("pageCount")}
         }
-        content = get_or_create_content(db, b["id"], "google_books", data)
-        output.append(_format_content(content, "books"))
+        content = content_repo.get_or_create(db, b["id"], "google_books", data)
+        output.append(ContentOut.from_cache(content, "books"))
     return output
 
-@router.post("/interests")
+@router.post("/interests", response_model=SaveInterestResponse)
 def save_interests(
     req: SaveInterestRequest,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    # Update location if provided
     if req.city:
-        current_user.city = req.city
-        current_user.state = req.state
-        current_user.country = req.country
-        db.commit()
-
+        user_repo.update_location(db, current_user, req.city, req.state, req.country)
     saved = []
     for item in req.items:
-        content = get_or_create_content(db, item.external_id, item.source, {
+        content = content_repo.get_or_create(db, item.external_id, item.source, {
             "title": item.title,
             "cover_image": item.cover_image,
             "creator": item.creator,
             "genres": item.genres,
             "release_year": item.release_year,
         })
-
-        existing = db.query(Interest).filter(
-            Interest.user_id == current_user.id,
-            Interest.content_id == content.id
-        ).first()
-
-        if not existing:
-            interest = Interest(
-                user_id=current_user.id,
-                content_id=content.id,
-                category=item.category
-            )
-            db.add(interest)
+        if not interest_repo.get_existing(db, current_user.id, content.id):
+            interest_repo.create(db, current_user.id, content.id, item.category)
             saved.append(item.title)
+    return SaveInterestResponse(saved=len(saved), titles=saved)
 
-    db.commit()
-    return {"saved": len(saved), "titles": saved}
-
-@router.get("/interests")
+@router.get("/interests", response_model=List[InterestOut])
 def get_interests(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    interests = db.query(Interest).filter(Interest.user_id == current_user.id).all()
-    return [
-        {
-            "id": str(i.id),
-            "category": i.category,
-            "content_id": str(i.content_id),
-            "title": i.content.title if i.content else None,
-            "cover_image": i.content.cover_image if i.content else None,
-            "genres": i.content.genres if i.content else [],
-            "status": i.status,
-            "rating": i.rating,
-            "is_favorite": i.is_favorite,
-        }
-        for i in interests
-    ]
-
-def _format_content(content: ContentCache, category: str) -> dict:
-    return {
-        "external_id": content.external_id,
-        "source": content.source,
-        "title": content.title,
-        "cover_image": content.cover_image,
-        "creator": content.creator,
-        "genres": content.genres or [],
-        "release_year": content.release_year,
-        "category": category,
-        "cached_id": str(content.id)
-    }
+    interests = interest_repo.get_by_user(db, current_user.id)
+    return [InterestOut.from_orm(i) for i in interests]

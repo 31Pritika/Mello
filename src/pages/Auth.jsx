@@ -36,6 +36,25 @@ function validateEmail(email) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)
 }
 
+function Field({ label, field, value, onChange, type = 'text', placeholder }) {
+    const hasError = touched[field] && fieldErrors[field]
+    return (
+      <div style={{ marginBottom: hasError ? '0' : '0' }}>
+        <label style={s.label}>{label}</label>
+        <input
+          type={type}
+          placeholder={placeholder}
+          value={value}
+          onChange={e => { onChange(e.target.value); if (touched[field]) setFieldErrors(prev => ({ ...prev, [field]: validateField(field, e.target.value) })) }}
+          onBlur={() => handleBlur(field, value)}
+          style={s.input(hasError)}
+        />
+        {hasError && <span style={s.fieldError}>{fieldErrors[field]}</span>}
+      </div>
+    )
+  }
+
+
 export default function Auth() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -109,24 +128,6 @@ export default function Auth() {
     setLoading(false)
   }
 
-  function Field({ label, field, value, onChange, type = 'text', placeholder }) {
-    const hasError = touched[field] && fieldErrors[field]
-    return (
-      <div style={{ marginBottom: hasError ? '0' : '0' }}>
-        <label style={s.label}>{label}</label>
-        <input
-          type={type}
-          placeholder={placeholder}
-          value={value}
-          onChange={e => { onChange(e.target.value); if (touched[field]) setFieldErrors(prev => ({ ...prev, [field]: validateField(field, e.target.value) })) }}
-          onBlur={() => handleBlur(field, value)}
-          style={s.input(hasError)}
-        />
-        {hasError && <span style={s.fieldError}>{fieldErrors[field]}</span>}
-      </div>
-    )
-  }
-
   return (
     <div style={s.page}>
       <div style={s.card}>
@@ -136,37 +137,70 @@ export default function Auth() {
         <div style={s.hint}>{isLogin ? 'Your circle is waiting' : 'Find people who just get it'}</div>
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: '0' }}>
-          {!isLogin && (
-            <Field label="Your name" field="name" value={name} onChange={setName} placeholder="How should we call you?" />
-          )}
+  {!isLogin && (
+    <div>
+      <label style={s.label}>Your name</label>
+      <input
+        type="text"
+        placeholder="How should we call you?"
+        value={name}
+        onChange={e => { setName(e.target.value); if (touched.name) setFieldErrors(prev => ({ ...prev, name: validateField('name', e.target.value) })) }}
+        onBlur={() => handleBlur('name', name)}
+        style={s.input(touched.name && fieldErrors.name)}
+      />
+      {touched.name && fieldErrors.name && <span style={s.fieldError}>{fieldErrors.name}</span>}
+    </div>
+  )}
 
-          <Field label="Email" field="email" value={email} onChange={setEmail} placeholder="your@email.com" />
+  <div>
+    <label style={s.label}>Email</label>
+    <input
+      type="text"
+      placeholder="your@email.com"
+      value={email}
+      onChange={e => { setEmail(e.target.value); if (touched.email) setFieldErrors(prev => ({ ...prev, email: validateField('email', e.target.value) })) }}
+      onBlur={() => handleBlur('email', email)}
+      style={s.input(touched.email && fieldErrors.email)}
+    />
+    {touched.email && fieldErrors.email && <span style={s.fieldError}>{fieldErrors.email}</span>}
+  </div>
 
-          <div>
-            <label style={s.label}>Password</label>
-            <input
-              type="password"
-              placeholder="••••••••"
-              value={password}
-              onChange={e => { setPassword(e.target.value); if (touched.password) setFieldErrors(prev => ({ ...prev, password: validateField('password', e.target.value) })) }}
-              onBlur={() => handleBlur('password', password)}
-              style={s.input(touched.password && fieldErrors.password)}
-            />
-            {!isLogin && password && (
-              <>
-                <div style={s.strengthBar(strength)} />
-                <div style={{ fontSize: '9px', letterSpacing: '0.1em', color: strength === 3 ? '#4A9E6A' : strength === 2 ? '#E0A458' : '#C4547A', marginBottom: '8px' }}>
-                  {strengthLabel}
-                </div>
-              </>
-            )}
-            {touched.password && fieldErrors.password && <span style={s.fieldError}>{fieldErrors.password}</span>}
-          </div>
-
-          {!isLogin && (
-            <Field label="Confirm password" field="confirmPassword" value={confirmPassword} onChange={setConfirmPassword} type="password" placeholder="••••••••" />
-          )}
+  <div>
+    <label style={s.label}>Password</label>
+    <input
+      type="password"
+      placeholder="••••••••"
+      value={password}
+      onChange={e => { setPassword(e.target.value); if (touched.password) setFieldErrors(prev => ({ ...prev, password: validateField('password', e.target.value) })) }}
+      onBlur={() => handleBlur('password', password)}
+      style={s.input(touched.password && fieldErrors.password)}
+    />
+    {!isLogin && password && (
+      <>
+        <div style={s.strengthBar(strength)} />
+        <div style={{ fontSize: '9px', letterSpacing: '0.1em', color: strength === 3 ? '#4A9E6A' : strength === 2 ? '#E0A458' : '#C4547A', marginBottom: '8px' }}>
+          {strengthLabel}
         </div>
+      </>
+    )}
+    {touched.password && fieldErrors.password && <span style={s.fieldError}>{fieldErrors.password}</span>}
+  </div>
+
+  {!isLogin && (
+    <div>
+      <label style={s.label}>Confirm password</label>
+      <input
+        type="password"
+        placeholder="••••••••"
+        value={confirmPassword}
+        onChange={e => { setConfirmPassword(e.target.value); if (touched.confirmPassword) setFieldErrors(prev => ({ ...prev, confirmPassword: validateField('confirmPassword', e.target.value) })) }}
+        onBlur={() => handleBlur('confirmPassword', confirmPassword)}
+        style={s.input(touched.confirmPassword && fieldErrors.confirmPassword)}
+      />
+      {touched.confirmPassword && fieldErrors.confirmPassword && <span style={s.fieldError}>{fieldErrors.confirmPassword}</span>}
+    </div>
+  )}
+</div>
 
         {error && <div style={{ ...s.error, marginTop: '0.8rem' }}>{error}</div>}
 
