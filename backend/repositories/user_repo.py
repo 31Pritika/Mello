@@ -1,53 +1,51 @@
 from sqlalchemy.orm import Session
-from models import User
+from sqlalchemy import func
+from models import User, Interest, CircleMember
 from auth import hash_password
 from datetime import datetime
+from .base import BaseRepository
+from typing import Optional, List
 
-def get_by_id(db: Session, user_id) -> User:
-    return db.query(User).filter(User.id == user_id).first()
+class UserRepository(BaseRepository[User]):
+    def __init__(self, db: Session):
+        super().__init__(User, db)
 
-def get_by_email(db: Session, email: str) -> User:
-    return db.query(User).filter(User.email == email).first()
+    def get_by_email(self, email: str) -> Optional[User]:
+        return self.db.query(User).filter(User.email == email).first()
 
-def get_by_city(db: Session, city: str, exclude_id=None):
-    q = db.query(User).filter(
-        User.city == city,
-        User.is_active == True
-    )
-    if exclude_id:
-        q = q.filter(User.id != exclude_id)
-    return q.all()
+    def get_by_city(self, city: str, exclude_id=None) -> List[User]:
+        # Single query — gets all active users in city with their interests
+        # preloaded to avoid N+1 in matching
+        from sqlalchemy.orm import joinedload
+        q = self.db.query(User).options(
+            joinedload(User.interests)
+        ).filter(
+            func.lower(User.city) == func.lower(city),
+            User.is_active == True
+        )
+        if exclude_id:
+            q = q.filter(User.id != exclude_id)
+        return q.all()
 
-def create(db: Session, email: str, password: str, name: str, city=None, state=None, country=None) -> User:
-    user = User(
-        email=email,
-        hashed_password=hash_password(password),
-        name=name,
-        city=city,
-        state=state,
-        country=country
-    )
-    db.add(user)
-    db.commit()
-    db.refresh(user)
-    return user
+    def create_user(self, email: str, password: str, name: str,
+                    city=None, state=None, country=None) -> User:
+        return self.create(
+            email=email,
+            hashed_password=hash_password(password),
+            name=name,
+            city=city.strip().lower() if city else None,
+            state=state,
+            country=country,
+        )
 
-def update_location(db: Session, user: User, city: str, state: str, country: str) -> User:
-    user.city = city
-    user.state = state
-    user.country = country
-    db.commit()
-    db.refresh(user)
-    return user
+    def update_location(self, user: User, city: str, state: str, country: str) -> User:
+        return self.update(
+            user,
+            city=city.strip().lower() if city else None,
+            state=state,
+            country=country
+        )
 
-def update_last_seen(db: Session, user: User):
-    user.last_seen_at = datetime.utcnow()
-    db.commit()
-
-def update_profile(db: Session, user: User, **kwargs) -> User:
-    for field, value in kwargs.items():
-        if value is not None:
-            setattr(user, field, value)
-    db.commit()
-    db.refresh(user)
-    return user
+    def update_last_seen(self, user: User) -> None:
+        user.last_seen_at = datetime.utcnow()
+        self.db.commit()

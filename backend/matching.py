@@ -2,21 +2,21 @@ from sqlalchemy.orm import Session
 from models import Profile, Interest, Circle, CircleMember
 
 def run_matching(db: Session, user_id: str):
-    profile = db.query(Profile).filter(Profile.id == user_id).first()
+    profile = db.query(Profile).filter(Profile.id == user_id).first() #SELECT * FROM profile WHERE id = user_id LIMIT 1;
     if not profile or not profile.city:
-        return {"matched": False, "reason": "no profile or city"}
+        return {"matched": False, "reason": "no profile or city"} #stop execution
 
-    my_interests = db.query(Interest).filter(Interest.user_id == user_id).all()
+    my_interests = db.query(Interest).filter(Interest.user_id == user_id).all() #SELECT * FROM interest WHERE user_id = user_id;
     if not my_interests:
-        return {"matched": False, "reason": "no interests"}
+        return {"matched": False, "reason": "no interests"} #stop execution
 
     city_users = db.query(Profile).filter(
         Profile.city == profile.city,
         Profile.id != user_id
-    ).all()
+    ).all()  #SELECT * FROM profile WHERE city = 'same_city' AND id != user_id;
 
     categories = ["movies", "shows", "music", "books"]
-    results = {}
+    results = {} 
 
     for category in categories:
         my_items = {i.item_id for i in my_interests if i.category == category}

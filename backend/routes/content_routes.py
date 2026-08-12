@@ -9,6 +9,7 @@ from schemas import (
 )
 from repositories import content_repo, interest_repo, user_repo
 from typing import List
+from repositories import ContentRepository, InterestRepository, UserRepository
 import httpx, os, base64
 
 router = APIRouter(prefix="/content", tags=["content"])
@@ -147,21 +148,34 @@ def save_interests(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
+    content_repo = ContentRepository(db)
+    interest_repo = InterestRepository(db)
+    user_repo = UserRepository(db)
+
     if req.city:
-        user_repo.update_location(db, current_user, req.city, req.state, req.country)
-    saved = []
-    for item in req.items:
-        content = content_repo.get_or_create(db, item.external_id, item.source, {
+        user_repo.update_location(current_user, req.city, req.state, req.country)
+
+    # Bulk fetch/create all content in one operation
+    content_map = content_repo.bulk_get_or_create([
+        (item.external_id, item.source, {
             "title": item.title,
             "cover_image": item.cover_image,
             "creator": item.creator,
             "genres": item.genres,
             "release_year": item.release_year,
         })
-        if not interest_repo.get_existing(db, current_user.id, content.id):
-            interest_repo.create(db, current_user.id, content.id, item.category)
-            saved.append(item.title)
-    return SaveInterestResponse(saved=len(saved), titles=saved)
+        for item in req.items
+    ])
+
+    # Bulk save all interests in one commit
+    items_to_save = [
+        (content_map[(item.external_id, item.source)], item.title, item.category)
+        for item in req.items
+        if (item.external_id, item.source) in content_map
+    ]
+    saved_titles = interest_repo.bulk_create(current_user.id, items_to_save)
+
+    return SaveInterestResponse(saved=len(saved_titles), titles=saved_titles)
 
 @router.get("/interests", response_model=List[InterestOut])
 def get_interests(

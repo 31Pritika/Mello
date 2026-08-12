@@ -9,7 +9,7 @@ DATABASE_URL = os.getenv("DATABASE_URL")
 
 engine = create_engine(DATABASE_URL)
 SessionLocal = sessionmaker(bind=engine, autocommit=False, autoflush=False) #bind is basically connecting session to db, autocommit has to be done manually, autoflush is false because we want to control when to flush the changes to the db
-Base = declarative_base()
+Base = declarative_base() #parent of all models
 
 def get_db(): #create a new db session for each request and close it after the request is done
     db = SessionLocal()
