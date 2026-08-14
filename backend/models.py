@@ -38,6 +38,8 @@ class User(Base):
     posts = relationship("Post", back_populates="user", cascade="all, delete")
     reactions = relationship("Reaction", back_populates="user", cascade="all, delete")
     circle_memberships = relationship("CircleMember", back_populates="user", cascade="all, delete")
+    phone = Column(String, unique=True)
+    oauth_accounts = relationship("OAuthAccount", back_populates="user", cascade="all, delete")
 
 
 # =========================
@@ -200,10 +202,39 @@ class Match(Base):
     user_1_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"))
     user_2_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"))
 
+    category = Column(String, nullable=False, default="general")
     category_id = Column(UUID(as_uuid=True), ForeignKey("categories.id"))
     score = Column(Integer, nullable=False)
+    common_content = Column(JSONB, default=list)
 
     created_at = Column(TIMESTAMP, server_default=func.now())
 
     user_1 = relationship("User", foreign_keys=[user_1_id])
     user_2 = relationship("User", foreign_keys=[user_2_id])
+
+class OAuthAccount(Base):
+    __tablename__ = "oauth_accounts"
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"))
+    provider = Column(String, nullable=False)
+    provider_user_id = Column(String, nullable=False)
+    email = Column(String)
+    access_token = Column(String)
+    created_at = Column(TIMESTAMP, server_default=func.now())
+
+    user = relationship("User", back_populates="oauth_accounts")
+    __table_args__ = (
+        UniqueConstraint('provider', 'provider_user_id', name='uq_provider_user'),
+    )
+
+class AuthToken(Base):
+    __tablename__ = "auth_tokens"
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"))
+    token = Column(String, nullable=False, unique=True)
+    token_type = Column(String, nullable=False)
+    expires_at = Column(TIMESTAMP, nullable=False)
+    used_at = Column(TIMESTAMP)
+    created_at = Column(TIMESTAMP, server_default=func.now())
+
+    user = relationship("User")

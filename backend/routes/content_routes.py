@@ -7,7 +7,6 @@ from schemas import (
     SaveInterestRequest, SaveInterestResponse,
     ContentOut, InterestOut
 )
-from repositories import content_repo, interest_repo, user_repo
 from typing import List
 from repositories import ContentRepository, InterestRepository, UserRepository
 import httpx, os, base64
@@ -36,7 +35,8 @@ async def get_spotify_token():
 
 @router.get("/search/movies", response_model=List[ContentOut])
 async def search_movies(q: str = Query(...), db: Session = Depends(get_db)):
-    cached = content_repo.search_cache(db, "tmdb_movie", q)
+    repo = ContentRepository(db)
+    cached = repo.search_cache("tmdb_movie", q)
     if cached:
         return [ContentOut.from_cache(c, "movies") for c in cached]
     async with httpx.AsyncClient() as client:
@@ -56,13 +56,14 @@ async def search_movies(q: str = Query(...), db: Session = Depends(get_db)):
             "genres": [],
             "extra_data": {"popularity": m.get("popularity")}
         }
-        content = content_repo.get_or_create(db, str(m["id"]), "tmdb_movie", data)
+        content = repo.get_or_create(str(m["id"]), "tmdb_movie", data)
         output.append(ContentOut.from_cache(content, "movies"))
     return output
 
 @router.get("/search/shows", response_model=List[ContentOut])
 async def search_shows(q: str = Query(...), db: Session = Depends(get_db)):
-    cached = content_repo.search_cache(db, "tmdb_show", q)
+    repo = ContentRepository(db)
+    cached = repo.search_cache("tmdb_show", q)
     if cached:
         return [ContentOut.from_cache(c, "shows") for c in cached]
     async with httpx.AsyncClient() as client:
@@ -82,13 +83,14 @@ async def search_shows(q: str = Query(...), db: Session = Depends(get_db)):
             "genres": [],
             "extra_data": {}
         }
-        content = content_repo.get_or_create(db, str(s["id"]), "tmdb_show", data)
+        content = repo.get_or_create(str(s["id"]), "tmdb_show", data)
         output.append(ContentOut.from_cache(content, "shows"))
     return output
 
 @router.get("/search/music", response_model=List[ContentOut])
 async def search_music(q: str = Query(...), db: Session = Depends(get_db)):
-    cached = content_repo.search_cache(db, "spotify_artist", q)
+    repo = ContentRepository(db)
+    cached = repo.search_cache("spotify_artist", q)
     if cached:
         return [ContentOut.from_cache(c, "music") for c in cached]
     token = await get_spotify_token()
@@ -110,13 +112,14 @@ async def search_music(q: str = Query(...), db: Session = Depends(get_db)):
                 "followers": a.get("followers", {}).get("total")
             }
         }
-        content = content_repo.get_or_create(db, a["id"], "spotify_artist", data)
+        content = repo.get_or_create(a["id"], "spotify_artist", data)
         output.append(ContentOut.from_cache(content, "music"))
     return output
 
 @router.get("/search/books", response_model=List[ContentOut])
 async def search_books(q: str = Query(...), db: Session = Depends(get_db)):
-    cached = content_repo.search_cache(db, "google_books", q)
+    repo = ContentRepository(db)
+    cached = repo.search_cache("google_books", q)
     if cached:
         return [ContentOut.from_cache(c, "books") for c in cached]
     async with httpx.AsyncClient() as client:
@@ -138,7 +141,7 @@ async def search_books(q: str = Query(...), db: Session = Depends(get_db)):
             "description": info.get("description"),
             "extra_data": {"page_count": info.get("pageCount")}
         }
-        content = content_repo.get_or_create(db, b["id"], "google_books", data)
+        content = repo.get_or_create(b["id"], "google_books", data)
         output.append(ContentOut.from_cache(content, "books"))
     return output
 
@@ -182,5 +185,6 @@ def get_interests(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    interests = interest_repo.get_by_user(db, current_user.id)
+    interest_repo = InterestRepository(db)
+    interests = interest_repo.get_by_user(current_user.id)
     return [InterestOut.from_orm(i) for i in interests]

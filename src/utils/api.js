@@ -1,8 +1,10 @@
 const BASE = 'http://localhost:8000'
+// backend server address
 
 function getToken() {
   return localStorage.getItem('mello_token')
 }
+// gets the users JWT authetication token from local storage
 
 function headers() {
   const token = getToken()
@@ -59,6 +61,7 @@ export function getStoredUser() {
   return u ? JSON.parse(u) : null
 }
 
+//removes mello_token and mello_user from local storage
 export function isLoggedIn() {
   return !!getToken()
 }
@@ -80,11 +83,12 @@ export async function searchBooks(q) {
   return request('GET', `/content/search/books?q=${encodeURIComponent(q)}`)
 }
 
-// Interests
+// Saves Interests
 export async function saveInterests(items, city, state, country) {
   return request('POST', '/content/interests', { items, city, state, country })
 }
 
+//gets interests
 export async function getInterests() {
   return request('GET', '/content/interests')
 }
@@ -113,4 +117,41 @@ export async function reactToPost(postId, reactionType) {
 
 export async function renameCircle(circleId, name) {
   return request('PUT', `/circles/${circleId}/rename`, { name })
+}
+
+// Google OAuth
+export function loginWithGoogle() {
+  window.location.href = 'http://localhost:8000/auth/google'
+}
+
+// Magic link
+export async function requestMagicLink(email) {
+  return request('POST', '/auth/magic-link', { email })
+}
+
+export async function verifyToken(token, tokenType) {
+  const data = await request('POST', '/auth/verify-token', {
+    token,
+    token_type: tokenType
+  })
+  localStorage.setItem('mello_token', data.access_token)
+  localStorage.setItem('mello_user', JSON.stringify({
+    id: data.user_id,
+    name: data.name,
+    email: data.email
+  }))
+  return data
+}
+
+// Password reset
+export async function forgotPassword(email) {
+  return request('POST', '/auth/forgot-password', { email })
+}
+
+export async function resetPassword(token, newPassword, confirmPassword) {
+  return request('POST', '/auth/reset-password', {
+    token,
+    new_password: newPassword,
+    confirm_password: confirmPassword
+  })
 }

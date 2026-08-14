@@ -6,6 +6,7 @@ import re
 # ─── Request schemas ──────────────────────────────────────────────────────────
 
 class RegisterRequest(BaseModel):
+    """Schema for user registration request."""
     email: EmailStr
     password: str
     confirm_password: str
