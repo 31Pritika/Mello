@@ -100,39 +100,40 @@ export default function Auth() {
   }
 
   async function handleSubmit() {
-    setError('')
+  setError('')
 
-    if (!isLogin) {
-      const errors = {
-        name: validateField('name', name),
-        email: validateField('email', email),
-        password: validateField('password', password),
-        confirmPassword: validateField('confirmPassword', confirmPassword),
-      }
-      setFieldErrors(errors)
-      setTouched({ name: true, email: true, password: true, confirmPassword: true })
-      if (Object.values(errors).some(e => e)) return
-    } else {
-      if (!validateEmail(email)) {
-        setFieldErrors({ email: 'Enter a valid email address' })
-        setTouched({ email: true })
-        return
-      }
+  if (mode === 'register') {
+    const errors = {
+      name: validateField('name', name),
+      email: validateField('email', email),
+      password: validateField('password', password),
+      confirmPassword: validateField('confirmPassword', confirmPassword),
     }
-
-    setLoading(true)
-    try {
-      if (isLogin) {
-        await login(email, password)
-      } else {
-        await register(email, password, confirmPassword, name)
-      }
-      navigate('/onboarding')
-    } catch(e) {
-      setError(e.message)
+    setFieldErrors(errors)
+    setTouched({ name: true, email: true, password: true, confirmPassword: true })
+    if (Object.values(errors).some(e => e)) return
+  } else {
+    if (!validateEmail(email)) {
+      setFieldErrors({ email: 'Enter a valid email address' })
+      setTouched({ email: true })
+      return
     }
-    setLoading(false)
   }
+
+  setLoading(true)
+  try {
+    if (mode === 'login') {
+      await login(email, password)
+      navigate('/dashboard')
+    } else if (mode === 'register') {
+      await register(email, password, confirmPassword, name)
+      navigate('/onboarding')
+    }
+  } catch(e) {
+    setError(e.message)
+  }
+  setLoading(false)
+}
 
   async function handleMagicLink() {
   setError(''); setLoading(true)

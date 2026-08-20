@@ -36,3 +36,26 @@ def get_me(current_user: User = Depends(get_current_user)):
 def update_profile(req: UpdateProfileRequest, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     UserRepository(db).update(current_user, **req.dict(exclude_none=True))
     return MessageResponse(message="Profile updated")
+
+@router.post("/login", response_model=TokenResponse)
+def login(req: LoginRequest, db: Session = Depends(get_db)):
+    repo = UserRepository(db)
+    user = repo.get_by_email(req.email)
+    
+    # Debug
+    import logging
+    logger = logging.getLogger(__name__)
+    logger.info(f"Login attempt: {req.email}")
+    logger.info(f"User found: {user is not None}")
+    if user:
+        from auth import verify_password
+        result = verify_password(req.password, user.hashed_password)
+        logger.info(f"Password match: {result}")
+        logger.info(f"Hash in DB: {user.hashed_password[:20]}...")
+    
+    if not user or not verify_password(req.password, user.hashed_password):
+        raise UnauthorizedError("Invalid email or password")
+    
+    repo.update_last_seen(user)
+    token = create_access_token({"sub": str(user.id)})
+    return TokenResponse(access_token=token, user_id=str(user.id), name=user.name, email=user.email)
