@@ -6,40 +6,45 @@ from models import User, OAuthAccount, AuthToken
 from auth import create_access_token, get_current_user, hash_password
 from schemas import TokenResponse, MessageResponse
 from repositories import UserRepository
-from services.google_oauth import oauth
 from services.email_services import generate_token, verify_token, send_magic_link, send_password_reset
 from exceptions import NotFoundError, BadRequestError
 from pydantic import BaseModel, EmailStr
 import os
 import secrets
+from fastapi.responses import RedirectResponse
 
 router = APIRouter(prefix="/auth", tags=["oauth"])
 
 FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:5173")
 
 # ─── Google OAuth ─────────────────────────────────────────────────────────────
+from services.google_oauth import get_google_auth_url, exchange_code_for_user
 
 @router.get("/google")
-async def google_login(request: Request):
-    redirect_uri = os.getenv("GOOGLE_REDIRECT_URI")
-    return await oauth.google.authorize_redirect(request, redirect_uri)
+def google_login():
+    auth_url, state = get_google_auth_url()
+    return RedirectResponse(url=auth_url)
 
 @router.get("/google/callback")
-async def google_callback(request: Request, db: Session = Depends(get_db)):
+async def google_callback(code: str = None, error: str = None, db: Session = Depends(get_db)):
+    if error:
+        return RedirectResponse(url=f"{FRONTEND_URL}/auth?error=google_denied")
+
+    if not code:
+        return RedirectResponse(url=f"{FRONTEND_URL}/auth?error=no_code")
+
     try:
-        token = await oauth.google.authorize_access_token(request)
-    except Exception:
-        raise BadRequestError("Google authentication failed")
+        user_info = await exchange_code_for_user(code)
+    except Exception as e:
+        return RedirectResponse(url=f"{FRONTEND_URL}/auth?error=google_failed")
 
-    user_info = token.get("userinfo")
-    if not user_info:
-        raise BadRequestError("Could not retrieve user info from Google")
+    google_id = user_info.get("sub")
+    email = user_info.get("email")
+    name = user_info.get("name", email.split("@")[0] if email else "User")
 
-    google_id = user_info["sub"]
-    email = user_info["email"]
-    name = user_info.get("name", email.split("@")[0])
+    if not google_id or not email:
+        return RedirectResponse(url=f"{FRONTEND_URL}/auth?error=no_user_info")
 
-    # Check if OAuth account already exists
     oauth_account = db.query(OAuthAccount).filter(
         OAuthAccount.provider == "google",
         OAuthAccount.provider_user_id == google_id
@@ -47,13 +52,13 @@ async def google_callback(request: Request, db: Session = Depends(get_db)):
 
     if oauth_account:
         user = oauth_account.user
+        is_new = False
     else:
-        # Check if user exists with this email
         user_repo = UserRepository(db)
         user = user_repo.get_by_email(email)
+        is_new = user is None
 
         if not user:
-            # Create new user — no password since they're using Google
             user = User(
                 email=email,
                 name=name,
@@ -64,23 +69,18 @@ async def google_callback(request: Request, db: Session = Depends(get_db)):
             db.commit()
             db.refresh(user)
 
-        # Link OAuth account
         db.add(OAuthAccount(
             user_id=user.id,
             provider="google",
             provider_user_id=google_id,
             email=email,
-            access_token=token.get("access_token")
         ))
         db.commit()
 
     jwt_token = create_access_token({"sub": str(user.id)})
-
-    # Redirect to frontend with token in URL — frontend stores it
-    is_new = oauth_account is None
     return RedirectResponse(
-        url=f"{FRONTEND_URL}/auth/callback?token={jwt_token}&user_id={user.id}&name={user.name}&email={user.email}&new={is_new}"
-    )
+        url=f"{FRONTEND_URL}/auth/callback?token={jwt_token}&user_id={user.id}&name={user.name}&email={user.email}&new={str(is_new).lower()}"
+)
 
 # ─── Magic Link ───────────────────────────────────────────────────────────────
 

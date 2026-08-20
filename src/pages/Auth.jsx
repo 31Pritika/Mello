@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { login, register } from '../utils/api'
+import { loginWithGoogle, requestMagicLink, forgotPassword } from '../utils/api'
 
 const s = {
   page: { minHeight: '100vh', background: '#0A0706', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '2rem', fontFamily: 'Inter, sans-serif' },
@@ -66,6 +67,11 @@ export default function Auth() {
   const [fieldErrors, setFieldErrors] = useState({})
   const [touched, setTouched] = useState({})
   const navigate = useNavigate()
+  const [mode, setMode] = useState('login') // 'login' | 'register' | 'magic' | 'forgot'
+  const [magicEmail, setMagicEmail] = useState('')
+  const [magicSent, setMagicSent] = useState(false)
+  const [forgotEmail, setForgotEmail] = useState('')
+  const [forgotSent, setForgotSent] = useState(false)
 
   const strength = getPasswordStrength(password)
   const strengthLabel = ['', 'Weak', 'Almost there', 'Strong'][strength]
@@ -128,97 +134,210 @@ export default function Auth() {
     setLoading(false)
   }
 
+  async function handleMagicLink() {
+  setError(''); setLoading(true)
+  try {
+    await requestMagicLink(magicEmail)
+    setMagicSent(true)
+  } catch(e) { setError(e.message) }
+  setLoading(false)
+}
+
+async function handleForgotPassword() {
+  setError(''); setLoading(true)
+  try {
+    await forgotPassword(forgotEmail)
+    setForgotSent(true)
+  } catch(e) { setError(e.message) }
+  setLoading(false)
+}
+
   return (
-    <div style={s.page}>
-      <div style={s.card}>
-        <div style={s.logo}>mello</div>
-        <div style={s.sub}>Taste Collective</div>
-        <div style={s.heading}>{isLogin ? 'Welcome back' : 'Join the library'}</div>
-        <div style={s.hint}>{isLogin ? 'Your circle is waiting' : 'Find people who just get it'}</div>
+  <div style={s.page}>
+    <div style={s.card}>
+      <div style={s.logo}>mello</div>
+      <div style={s.sub}>Taste Collective</div>
 
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '0' }}>
-  {!isLogin && (
-    <div>
-      <label style={s.label}>Your name</label>
-      <input
-        type="text"
-        placeholder="How should we call you?"
-        value={name}
-        onChange={e => { setName(e.target.value); if (touched.name) setFieldErrors(prev => ({ ...prev, name: validateField('name', e.target.value) })) }}
-        onBlur={() => handleBlur('name', name)}
-        style={s.input(touched.name && fieldErrors.name)}
-      />
-      {touched.name && fieldErrors.name && <span style={s.fieldError}>{fieldErrors.name}</span>}
-    </div>
-  )}
-
-  <div>
-    <label style={s.label}>Email</label>
-    <input
-      type="text"
-      placeholder="your@email.com"
-      value={email}
-      onChange={e => { setEmail(e.target.value); if (touched.email) setFieldErrors(prev => ({ ...prev, email: validateField('email', e.target.value) })) }}
-      onBlur={() => handleBlur('email', email)}
-      style={s.input(touched.email && fieldErrors.email)}
-    />
-    {touched.email && fieldErrors.email && <span style={s.fieldError}>{fieldErrors.email}</span>}
-  </div>
-
-  <div>
-    <label style={s.label}>Password</label>
-    <input
-      type="password"
-      placeholder="••••••••"
-      value={password}
-      onChange={e => { setPassword(e.target.value); if (touched.password) setFieldErrors(prev => ({ ...prev, password: validateField('password', e.target.value) })) }}
-      onBlur={() => handleBlur('password', password)}
-      style={s.input(touched.password && fieldErrors.password)}
-    />
-    {!isLogin && password && (
-      <>
-        <div style={s.strengthBar(strength)} />
-        <div style={{ fontSize: '9px', letterSpacing: '0.1em', color: strength === 3 ? '#4A9E6A' : strength === 2 ? '#E0A458' : '#C4547A', marginBottom: '8px' }}>
-          {strengthLabel}
-        </div>
-      </>
-    )}
-    {touched.password && fieldErrors.password && <span style={s.fieldError}>{fieldErrors.password}</span>}
-  </div>
-
-  {!isLogin && (
-    <div>
-      <label style={s.label}>Confirm password</label>
-      <input
-        type="password"
-        placeholder="••••••••"
-        value={confirmPassword}
-        onChange={e => { setConfirmPassword(e.target.value); if (touched.confirmPassword) setFieldErrors(prev => ({ ...prev, confirmPassword: validateField('confirmPassword', e.target.value) })) }}
-        onBlur={() => handleBlur('confirmPassword', confirmPassword)}
-        style={s.input(touched.confirmPassword && fieldErrors.confirmPassword)}
-      />
-      {touched.confirmPassword && fieldErrors.confirmPassword && <span style={s.fieldError}>{fieldErrors.confirmPassword}</span>}
-    </div>
-  )}
-</div>
-
-        {error && <div style={{ ...s.error, marginTop: '0.8rem' }}>{error}</div>}
-
-        <button onClick={handleSubmit} disabled={loading} style={s.btn(!loading)}>
-          {loading ? 'One moment...' : isLogin ? 'Enter →' : 'Join Mello →'}
-        </button>
-
-        <div style={s.toggle}>
-          {isLogin ? "New here? " : "Already a member? "}
-          <span onClick={() => { setIsLogin(!isLogin); setError(''); setFieldErrors({}); setTouched({}) }} style={s.toggleLink}>
-            {isLogin ? 'Create an account' : 'Sign in'}
-          </span>
-        </div>
+      {/* Mode tabs */}
+      <div style={{ display: 'flex', gap: '6px', marginBottom: '2rem' }}>
+        {[['login', 'Sign In'], ['register', 'Register'], ['magic', 'Magic Link']].map(([m, label]) => (
+          <button key={m} onClick={() => { setMode(m); setError('') }} style={{
+            padding: '6px 14px', borderRadius: '100px',
+            background: mode === m ? '#C4547A' : 'transparent',
+            color: mode === m ? '#0A0706' : '#7D746D',
+            border: `1px solid ${mode === m ? '#C4547A' : 'rgba(196,84,122,0.2)'}`,
+            fontFamily: 'Inter', fontSize: '9px', letterSpacing: '0.15em',
+            textTransform: 'uppercase', cursor: 'pointer', transition: 'all 0.2s ease'
+          }}>{label}</button>
+        ))}
       </div>
-      <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,500&family=Inter:wght@300;400;500&display=swap');
-        input { cursor: text !important; }
-      `}</style>
+
+      {/* Google OAuth button — shown on login and register */}
+      {(mode === 'login' || mode === 'register') && (
+        <>
+          <button onClick={loginWithGoogle} style={{
+            width: '100%', padding: '12px', marginBottom: '1rem',
+            background: 'transparent',
+            border: '1px solid rgba(196,84,122,0.2)',
+            borderRadius: '2px', color: '#EFECE6',
+            fontFamily: 'Inter', fontSize: '0.88rem',
+            cursor: 'pointer', display: 'flex',
+            alignItems: 'center', justifyContent: 'center', gap: '10px',
+            transition: 'border-color 0.2s ease'
+          }}
+            onMouseEnter={e => e.currentTarget.style.borderColor = 'rgba(196,84,122,0.5)'}
+            onMouseLeave={e => e.currentTarget.style.borderColor = 'rgba(196,84,122,0.2)'}
+          >
+            <svg width="18" height="18" viewBox="0 0 48 48">
+              <path fill="#FFC107" d="M43.6 20H24v8h11.3C33.6 33.1 29.3 36 24 36c-6.6 0-12-5.4-12-12s5.4-12 12-12c3 0 5.7 1.1 7.8 2.9l5.7-5.7C34.1 6.5 29.3 4 24 4 12.9 4 4 12.9 4 24s8.9 20 20 20c11 0 19.7-8 19.7-20 0-1.3-.1-2.7-.1-4z"/>
+              <path fill="#FF3D00" d="M6.3 14.7l6.6 4.8C14.5 15.1 18.9 12 24 12c3 0 5.7 1.1 7.8 2.9l5.7-5.7C34.1 6.5 29.3 4 24 4c-7.7 0-14.4 4.4-17.7 10.7z"/>
+              <path fill="#4CAF50" d="M24 44c5.2 0 9.9-1.9 13.5-5l-6.2-5.2C29.5 35.6 26.9 36 24 36c-5.2 0-9.6-2.9-11.3-7.1l-6.6 5C9.5 39.5 16.3 44 24 44z"/>
+              <path fill="#1976D2" d="M43.6 20H24v8h11.3c-.9 2.5-2.6 4.6-4.8 6l6.2 5.2C40.5 36.1 44 30.5 44 24c0-1.3-.1-2.7-.4-4z"/>
+            </svg>
+            Continue with Google
+          </button>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '1.2rem' }}>
+            <div style={{ flex: 1, height: '1px', background: 'rgba(196,84,122,0.1)' }} />
+            <span style={{ fontSize: '9px', color: '#5A5450', letterSpacing: '0.15em', textTransform: 'uppercase' }}>or</span>
+            <div style={{ flex: 1, height: '1px', background: 'rgba(196,84,122,0.1)' }} />
+          </div>
+        </>
+      )}
+
+      {/* Login form */}
+      {mode === 'login' && (
+        <>
+          <div style={s.heading}>Welcome back</div>
+          <div style={s.hint}>Your circle is waiting</div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0' }}>
+            <div>
+              <label style={s.label}>Email</label>
+              <input type="text" placeholder="your@email.com" value={email} onChange={e => setEmail(e.target.value)} style={s.input(touched.email && fieldErrors.email)} onBlur={() => handleBlur('email', email)} />
+              {touched.email && fieldErrors.email && <span style={s.fieldError}>{fieldErrors.email}</span>}
+            </div>
+            <div>
+              <label style={s.label}>Password</label>
+              <input type="password" placeholder="••••••••" value={password} onChange={e => setPassword(e.target.value)} style={s.input(false)} onBlur={() => handleBlur('password', password)} />
+            </div>
+          </div>
+          <div style={{ textAlign: 'right', marginBottom: '1rem' }}>
+            <span onClick={() => setMode('forgot')} style={{ fontSize: '0.8rem', color: '#C4547A', cursor: 'pointer', textDecoration: 'underline', textUnderlineOffset: '3px' }}>
+              Forgot password?
+            </span>
+          </div>
+          {error && <div style={{ ...s.error, marginBottom: '0.8rem' }}>{error}</div>}
+          <button onClick={handleSubmit} disabled={loading} style={s.btn(!loading)}>
+            {loading ? 'One moment...' : 'Enter →'}
+          </button>
+          <div style={s.toggle}>
+            New here?{' '}
+            <span onClick={() => setMode('register')} style={s.toggleLink}>Create an account</span>
+          </div>
+        </>
+      )}
+
+      {/* Register form */}
+      {mode === 'register' && (
+        <>
+          <div style={s.heading}>Join the library</div>
+          <div style={s.hint}>Find people who just get it</div>
+          <div style={{ display: 'flex', flexDirection: 'column' }}>
+            <div>
+              <label style={s.label}>Your name</label>
+              <input type="text" placeholder="How should we call you?" value={name} onChange={e => setName(e.target.value)} style={s.input(touched.name && fieldErrors.name)} onBlur={() => handleBlur('name', name)} />
+              {touched.name && fieldErrors.name && <span style={s.fieldError}>{fieldErrors.name}</span>}
+            </div>
+            <div>
+              <label style={s.label}>Email</label>
+              <input type="text" placeholder="your@email.com" value={email} onChange={e => setEmail(e.target.value)} style={s.input(touched.email && fieldErrors.email)} onBlur={() => handleBlur('email', email)} />
+              {touched.email && fieldErrors.email && <span style={s.fieldError}>{fieldErrors.email}</span>}
+            </div>
+            <div>
+              <label style={s.label}>Password</label>
+              <input type="password" placeholder="••••••••" value={password} onChange={e => { setPassword(e.target.value); if (touched.password) setFieldErrors(prev => ({ ...prev, password: validateField('password', e.target.value) })) }} onBlur={() => handleBlur('password', password)} style={s.input(touched.password && fieldErrors.password)} />
+              {password && (
+                <>
+                  <div style={s.strengthBar(strength)} />
+                  <div style={{ fontSize: '9px', letterSpacing: '0.1em', color: strength === 3 ? '#4A9E6A' : strength === 2 ? '#E0A458' : '#C4547A', marginBottom: '8px' }}>{strengthLabel}</div>
+                </>
+              )}
+              {touched.password && fieldErrors.password && <span style={s.fieldError}>{fieldErrors.password}</span>}
+            </div>
+            <div>
+              <label style={s.label}>Confirm Password</label>
+              <input type="password" placeholder="••••••••" value={confirmPassword} onChange={e => { setConfirmPassword(e.target.value); if (touched.confirmPassword) setFieldErrors(prev => ({ ...prev, confirmPassword: validateField('confirmPassword', e.target.value) })) }} onBlur={() => handleBlur('confirmPassword', confirmPassword)} style={s.input(touched.confirmPassword && fieldErrors.confirmPassword)} />
+              {touched.confirmPassword && fieldErrors.confirmPassword && <span style={s.fieldError}>{fieldErrors.confirmPassword}</span>}
+            </div>
+          </div>
+          {error && <div style={{ ...s.error, marginTop: '0.5rem' }}>{error}</div>}
+          <button onClick={handleSubmit} disabled={loading} style={{ ...s.btn(!loading), marginTop: '1rem' }}>
+            {loading ? 'One moment...' : 'Join Mello →'}
+          </button>
+          <div style={s.toggle}>
+            Already a member?{' '}
+            <span onClick={() => setMode('login')} style={s.toggleLink}>Sign in</span>
+          </div>
+        </>
+      )}
+
+      {/* Magic link */}
+      {mode === 'magic' && (
+        <>
+          <div style={s.heading}>Sign in without a password</div>
+          <div style={s.hint}>Enter your email and we'll send you a login link.</div>
+          {!magicSent ? (
+            <>
+              <label style={s.label}>Email</label>
+              <input type="text" placeholder="your@email.com" value={magicEmail} onChange={e => setMagicEmail(e.target.value)} style={s.input(false)} />
+              {error && <div style={s.error}>{error}</div>}
+              <button onClick={handleMagicLink} disabled={loading || !magicEmail} style={s.btn(!loading && !!magicEmail)}>
+                {loading ? 'Sending...' : 'Send Login Link →'}
+              </button>
+            </>
+          ) : (
+            <div style={{ padding: '1.5rem', background: 'rgba(74,158,106,0.08)', border: '1px solid rgba(74,158,106,0.2)', borderRadius: '4px', textAlign: 'center' }}>
+              <div style={{ fontSize: '1.5rem', marginBottom: '0.8rem' }}>📬</div>
+              <div style={{ color: '#4A9E6A', fontSize: '0.88rem', marginBottom: '0.5rem' }}>Link sent</div>
+              <div style={{ color: '#7D746D', fontSize: '0.82rem', lineHeight: 1.6 }}>Check your inbox at {magicEmail}. The link expires in 30 minutes.</div>
+            </div>
+          )}
+          <div style={{ ...s.toggle, marginTop: '1.2rem' }}>
+            <span onClick={() => setMode('login')} style={s.toggleLink}>Back to login</span>
+          </div>
+        </>
+      )}
+
+      {/* Forgot password */}
+      {mode === 'forgot' && (
+        <>
+          <div style={s.heading}>Forgot your password?</div>
+          <div style={s.hint}>Enter your email and we'll send you a reset link.</div>
+          {!forgotSent ? (
+            <>
+              <label style={s.label}>Email</label>
+              <input type="text" placeholder="your@email.com" value={forgotEmail} onChange={e => setForgotEmail(e.target.value)} style={s.input(false)} />
+              {error && <div style={s.error}>{error}</div>}
+              <button onClick={handleForgotPassword} disabled={loading || !forgotEmail} style={s.btn(!loading && !!forgotEmail)}>
+                {loading ? 'Sending...' : 'Send Reset Link →'}
+              </button>
+            </>
+          ) : (
+            <div style={{ padding: '1.5rem', background: 'rgba(74,158,106,0.08)', border: '1px solid rgba(74,158,106,0.2)', borderRadius: '4px', textAlign: 'center' }}>
+              <div style={{ fontSize: '1.5rem', marginBottom: '0.8rem' }}>📬</div>
+              <div style={{ color: '#4A9E6A', fontSize: '0.88rem', marginBottom: '0.5rem' }}>Reset link sent</div>
+              <div style={{ color: '#7D746D', fontSize: '0.82rem', lineHeight: 1.6 }}>Check your inbox at {forgotEmail}. The link expires in 30 minutes.</div>
+            </div>
+          )}
+          <div style={{ ...s.toggle, marginTop: '1.2rem' }}>
+            <span onClick={() => setMode('login')} style={s.toggleLink}>Back to login</span>
+          </div>
+        </>
+      )}
     </div>
-  )
+    <style>{`
+      @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,500&family=Inter:wght@300;400;500&display=swap');
+      input { cursor: text !important; }
+    `}</style>
+  </div>
+)
 }

@@ -56,3 +56,7 @@ async def generic_exception_handler(request: Request, exc: Exception):
         status_code=500,
         content={"detail": "Internal server error"},
     )
+
+class BadRequestError(HTTPException):
+    def __init__(self, detail: str = "Bad request"):
+        super().__init__(status_code=400, detail=detail)

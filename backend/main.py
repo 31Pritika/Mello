@@ -5,6 +5,7 @@ from fastapi import HTTPException
 from sqlalchemy.exc import SQLAlchemyError
 from starlette.middleware.sessions import SessionMiddleware
 from dotenv import load_dotenv
+from database import ensure_required_columns
 from routes.auth_routes import router as auth_router
 from routes.content_routes import router as content_router
 from routes.circle_routes import router as circle_router
@@ -20,16 +21,15 @@ import logging
 import os
 
 load_dotenv()
+ensure_required_columns()
 
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s %(levelname)s %(name)s — %(message)s"
 )
 
-app = FastAPI(title="Mello API", version="1.0.0")
-
+app = FastAPI(title="Mello API", version="1.0.0", redirect_slashes=False)
 # Session middleware must come before CORS
-app.add_middleware(SessionMiddleware, secret_key=os.getenv("SECRET_KEY"))
 
 app.add_middleware(
     CORSMiddleware,

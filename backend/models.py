@@ -40,7 +40,7 @@ class User(Base):
     circle_memberships = relationship("CircleMember", back_populates="user", cascade="all, delete")
     phone = Column(String, unique=True)
     oauth_accounts = relationship("OAuthAccount", back_populates="user", cascade="all, delete")
-
+    location = relationship("Location", back_populates="users")
 
 # =========================
 # CONTENT CACHE
@@ -67,6 +67,8 @@ class ContentCache(Base):
 
     interests = relationship("Interest", back_populates="content")
     genres = relationship("ContentGenre", back_populates="content", cascade="all, delete")
+    creator = relationship("Creator", back_populates="content")
+    language = relationship("Language", back_populates="content")
 
 
 # =========================
@@ -97,6 +99,7 @@ class Interest(Base):
         CheckConstraint("status in ('completed','in_progress','want_to','dropped')"),
         CheckConstraint("rating >= 1 and rating <= 5"),
     )
+    moods = relationship("InterestMood", back_populates="interest", cascade="all, delete")
 
 
 # =========================
@@ -124,7 +127,7 @@ class Circle(Base):
 
     members = relationship("CircleMember", back_populates="circle", cascade="all, delete")
     posts = relationship("Post", back_populates="circle", cascade="all, delete")
-
+    location = relationship("Location", back_populates="circles")
 
 # =========================
 # CIRCLE MEMBERS
@@ -211,6 +214,7 @@ class Match(Base):
 
     user_1 = relationship("User", foreign_keys=[user_1_id])
     user_2 = relationship("User", foreign_keys=[user_2_id])
+    match_content = relationship("MatchContent", back_populates="match", cascade="all, delete")
 
 class OAuthAccount(Base):
     __tablename__ = "oauth_accounts"
@@ -238,3 +242,75 @@ class AuthToken(Base):
     created_at = Column(TIMESTAMP, server_default=func.now())
 
     user = relationship("User")
+
+# =========================
+# LOOKUP TABLES
+# =========================
+
+class Location(Base):
+    __tablename__ = "locations"
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    city = Column(String)
+    state = Column(String)
+    country = Column(String)
+    latitude = Column(String)
+    longitude = Column(String)
+
+    users = relationship("User", back_populates="location")
+    circles = relationship("Circle", back_populates="location")
+
+
+class Category(Base):
+    __tablename__ = "categories"
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    name = Column(String, nullable=False, unique=True)
+
+
+class Genre(Base):
+    __tablename__ = "genres"
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    name = Column(String, nullable=False, unique=True)
+
+    content_genres = relationship("ContentGenre", back_populates="genre")
+
+
+class Creator(Base):
+    __tablename__ = "creators"
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    name = Column(String, nullable=False, unique=True)
+
+    content = relationship("ContentCache", back_populates="creator")
+
+
+class Language(Base):
+    __tablename__ = "languages"
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    name = Column(String, nullable=False, unique=True)
+
+    content = relationship("ContentCache", back_populates="language")
+
+
+class ContentGenre(Base):
+    __tablename__ = "content_genres"
+    content_id = Column(UUID(as_uuid=True), ForeignKey("content_cache.id", ondelete="CASCADE"), primary_key=True)
+    genre_id = Column(UUID(as_uuid=True), ForeignKey("genres.id", ondelete="CASCADE"), primary_key=True)
+
+    content = relationship("ContentCache", back_populates="genres")
+    genre = relationship("Genre", back_populates="content_genres")
+
+
+class InterestMood(Base):
+    __tablename__ = "interest_moods"
+    interest_id = Column(UUID(as_uuid=True), ForeignKey("interests.id", ondelete="CASCADE"), primary_key=True)
+    mood_name = Column(String, primary_key=True)
+
+    interest = relationship("Interest", back_populates="moods")
+
+
+class MatchContent(Base):
+    __tablename__ = "match_content"
+    match_id = Column(UUID(as_uuid=True), ForeignKey("matches.id", ondelete="CASCADE"), primary_key=True)
+    content_id = Column(UUID(as_uuid=True), ForeignKey("content_cache.id", ondelete="CASCADE"), primary_key=True)
+
+    match = relationship("Match", back_populates="match_content")
+    content = relationship("ContentCache")
