@@ -28,10 +28,19 @@ class NotFoundError(HTTPException):
         super().__init__(status_code=404, detail=detail)
 
 
-async def validation_exception_handler(request: Request, exc: RequestValidationError):
+async def validation_exception_handler(request, exc: RequestValidationError):
+    errors = []
+
+    for error in exc.errors():
+        errors.append({
+            "loc": error.get("loc"),
+            "msg": error.get("msg"),
+            "type": error.get("type")
+        })
+
     return JSONResponse(
         status_code=422,
-        content={"detail": exc.errors()},
+        content={"detail": errors}
     )
 
 
