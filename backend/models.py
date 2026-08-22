@@ -234,7 +234,7 @@ class OAuthAccount(Base):
 class AuthToken(Base):
     __tablename__ = "auth_tokens"
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"))
+    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
     token = Column(String, nullable=False, unique=True)
     token_type = Column(String, nullable=False)
     expires_at = Column(TIMESTAMP, nullable=False)

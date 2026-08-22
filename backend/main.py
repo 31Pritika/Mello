@@ -10,6 +10,7 @@ from routes.auth_routes import router as auth_router
 from routes.content_routes import router as content_router
 from routes.circle_routes import router as circle_router
 from routes.matching_routes import router as matching_router
+from email_utils import send_email
 from routes.oauth_routes import router as oauth_router
 from exceptions import (
     validation_exception_handler,
@@ -52,3 +53,13 @@ app.include_router(matching_router)
 @app.get("/")
 def root():
     return {"status": "Mello API running", "version": "1.0.0"}
+
+@app.get("/test-email")
+async def test_email():
+    await send_email(
+        to_email="prishaagarwal3107@gmail.com",
+        subject="SMTP Test",
+        body="If you're reading this, SMTP is working!"
+    )
+
+    return {"message": "Email sent successfully"}

@@ -5,8 +5,11 @@ from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer #extracts jwt token from the request header
 from sqlalchemy.orm import Session 
 from database import get_db #my own file
-from models import User # sqlalchemy model for user
+from models import User, AuthToken # sqlalchemy model for user
 import os
+import hashlib
+import secrets
+
 
 SECRET_KEY = os.getenv("SECRET_KEY", "mello-secret-key-change-in-production") #searches for secret key or uses the default one if not found, should be changed in production
 ALGORITHM = "HS256" #hashing system for jwt (hmac + sha256)
