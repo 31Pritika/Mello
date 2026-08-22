@@ -48,3 +48,34 @@ def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(
     if user is None or not user.is_active:
         raise credentials_exception
     return user
+def create_magic_link_token() -> tuple[str, str]:
+    raw_token = secrets.token_urlsafe(32)
+
+    token_hash = hashlib.sha256(
+        raw_token.encode()
+    ).hexdigest()
+
+    return raw_token, token_hash
+
+
+def create_magic_link_auth_token(
+    user: User,
+    db: Session
+) -> str:
+
+    raw_token, token_hash = create_magic_link_token()
+
+    expires_at = datetime.utcnow() + timedelta(minutes=15)
+
+    auth_token = AuthToken(
+        user_id=user.id,
+        token=token_hash,
+        token_type="magic_link",
+        expires_at=expires_at
+    )
+
+    db.add(auth_token)
+    db.commit()
+    db.refresh(auth_token)
+
+    return raw_token

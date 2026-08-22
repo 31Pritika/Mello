@@ -88,7 +88,7 @@ class MagicLinkRequest(BaseModel):
     email: EmailStr
 
 @router.post("/magic-link")
-def request_magic_link(req: MagicLinkRequest, db: Session = Depends(get_db)):
+async def request_magic_link(req: MagicLinkRequest, db: Session = Depends(get_db)):
     user_repo = UserRepository(db)
     user = user_repo.get_by_email(req.email)
 
@@ -97,7 +97,7 @@ def request_magic_link(req: MagicLinkRequest, db: Session = Depends(get_db)):
         return MessageResponse(message="If an account exists with this email, a login link has been sent.")
 
     token = generate_token(db, user.id, "magic_link", expires_in_minutes=30)
-    send_magic_link(user.email, token, user.name)
+    await send_magic_link(user.email, token, user.name)
     return MessageResponse(message="If an account exists with this email, a login link has been sent.")
 
 class VerifyTokenRequest(BaseModel):
