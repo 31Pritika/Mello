@@ -128,11 +128,11 @@ class ForgotPasswordRequest(BaseModel):
     email: EmailStr
 
 @router.post("/forgot-password")
-def forgot_password(req: ForgotPasswordRequest, db: Session = Depends(get_db)):
+async def forgot_password(req: ForgotPasswordRequest, db: Session = Depends(get_db)):
     user = UserRepository(db).get_by_email(req.email)
     if user:
         token = generate_token(db, user.id, "password_reset", expires_in_minutes=30)
-        send_password_reset(user.email, token, user.name)
+        await send_password_reset(user.email, token, user.name)
     return MessageResponse(message="If an account exists with this email, a reset link has been sent.")
 
 class ResetPasswordRequest(BaseModel):
