@@ -6,12 +6,18 @@
 
 ## Features
 
-- 🎬 **Taste profiling** — curate your favorites across Cinema, Shows, Music, and Books
-- 📍 **City-based matching** — automatically matched with people who share your tastes in your city
-- ⭕ **Circles** — intimate community spaces (≤ 40 people) grouped by city + category
-- 💬 **Circle feeds** — post thoughts and react to others' posts
-- 🔐 **Multiple auth options** — email/password, Google OAuth, and passwordless magic links
-- 📧 **Password reset** — secure reset via email link
+- **Taste profiling** — curate your favorites across Cinema, Shows, Music, and Books
+- **City-based matching** — automatically matched with people who share your tastes in your city
+- **Circles** — intimate community spaces (≤ 40 people) grouped by city + category
+- **Circle feeds** — post thoughts and react to others' posts
+- **Multiple auth options** — email/password, Google OAuth, and passwordless magic links
+- **Password reset** — secure reset via email link
+-  **Taste profiling** — curate your favorites across Cinema, Shows, Music, and Books
+-  **City-based matching** — automatically matched with people who share your tastes in your city
+-  **Circles** — intimate community spaces (≤ 40 people) grouped by city + category
+-  **Circle feeds** — post thoughts and react to others' posts
+-  **Multiple auth options** — email/password, Google OAuth, and passwordless magic links
+-  **Password reset** — secure reset via email link
 
 ---
 
