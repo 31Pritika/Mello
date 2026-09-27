@@ -1,231 +1,409 @@
-Ran a command
-bash
+# mello — Taste Collective
 
-cat > /mnt/user-data/outputs/README.md << 'EOF'
-# mello
-
-> A taste-based social platform that connects people through shared interest in movies, shows, music, and books.
-
-Mello uses interest overlap and geographic proximity to place users into small, curated **Circles** — intimate communities of up to 40 people per interest category. Each Circle has a **Common Room**: a low-pressure, asynchronous space to drop thoughts, reactions, and recommendations. No algorithms. No noise. Just people who get it.
+**Mello** is a cultural taste-matching and micro-community web application. You build a personal taste profile by saving movies, TV shows, music artists, and books you love. Mello automatically finds people in your city who share overlapping tastes and places you into intimate, curated groups called **Circles** (max 40 members). Inside Circles, members post thoughts and react with resonance-based emotions: **resonate**, **love**, and **intrigued**.
 
 ---
 
 ## Features
 
-- **Taste-based matching** — users are matched by interest overlap per category (movies, shows, music, books) within the same city
-- **Circles** — small, curated groups (up to 40 people) formed automatically from matched users
-- **Common Room** — async post feed per circle with three reaction types: resonate, love, intrigued
-- **Multiple auth methods** — email/password, Google OAuth, magic link (passwordless), forgot/reset password
-- **Content caching** — all external API results cached in PostgreSQL; platform continues working if APIs go down
-- **Cinematic UI** — Midnight Library aesthetic: dark warm charcoal, deep rose accent, Playfair Display + Inter typography, custom cursor, ambient glow, cinematic card hover states
+-  **Taste profiling** — curate your favorites across Cinema, Shows, Music, and Books
+-  **City-based matching** — automatically matched with people who share your tastes in your city
+-  **Circles** — intimate community spaces (≤ 40 people) grouped by city + category
+-  **Circle feeds** — post thoughts and react to others' posts
+-  **Multiple auth options** — email/password, Google OAuth, and passwordless magic links
+-  **Password reset** — secure reset via email link
 
 ---
 
 ## Tech Stack
 
 | Layer | Technology |
-|---|---|
-| Frontend | React 18, Vite, React Router v6 |
-| Backend | FastAPI (Python 3.12) |
-| ORM | SQLAlchemy + psycopg2 |
-| Database | PostgreSQL via Supabase |
-| Auth | JWT (python-jose + passlib bcrypt) + Google OAuth |
-| Email | Resend |
-| Content APIs | TMDB, Spotify Web API, Google Books |
-| Location | Geoapify |
+|:------|:-----------|
+| **Frontend** | React 19, Vite 8, Tailwind CSS v4, React Router v7, Framer Motion |
+| **Backend** | FastAPI, Uvicorn, SQLAlchemy 2.0, PostgreSQL |
+| **Auth** | JWT (python-jose), bcrypt (passlib), Google OAuth 2.0 (Authlib) |
+| **Email** | aiosmtplib (async SMTP) |
+| **External APIs** | TMDB, Spotify Web API, Google Books API, Geoapify (city search) |
+
+---
+
+## Prerequisites
+
+Before starting, ensure you have the following installed:
+
+| Software | Minimum Version | Check Command |
+|:---------|:----------------|:--------------|
+| **Git** | 2.x | `git --version` |
+| **Node.js** | 18.x | `node --version` |
+| **npm** | 9.x | `npm --version` |
+| **Python** | 3.11+ | `python3 --version` |
+| **PostgreSQL** | 14.x | `psql --version` |
+
+---
+
+## Environment Variables
+
+You need two `.env` files — one for the frontend and one for the backend.
+
+### Frontend — `.env` (at repo root)
+
+```env
+VITE_GEOAPIFY_KEY=your_geoapify_api_key
+```
+
+> **Geoapify** powers the city autocomplete during onboarding. Get a free key at [geoapify.com](https://www.geoapify.com/).
+
+### Backend — `backend/.env`
+
+```env
+# Database
+DATABASE_URL=postgresql://username:password@localhost:5432/mello_db
+
+# JWT
+SECRET_KEY=your-random-secret-key-here
+
+# Frontend URL (used in email links)
+FRONTEND_URL=http://localhost:5173
+
+# Google OAuth (optional — needed for Google sign-in)
+GOOGLE_CLIENT_ID=your_google_client_id
+GOOGLE_CLIENT_SECRET=your_google_client_secret
+GOOGLE_REDIRECT_URI=http://localhost:8000/auth/google/callback
+
+# External Content APIs
+TMDB_KEY=your_tmdb_api_key
+SPOTIFY_CLIENT_ID=your_spotify_client_id
+SPOTIFY_CLIENT_SECRET=your_spotify_client_secret
+GOOGLE_BOOKS_KEY=your_google_books_api_key
+
+# SMTP (for magic links and password reset emails)
+SMTP_HOST=smtp.gmail.com
+SMTP_PORT=587
+SMTP_USERNAME=your_email@gmail.com
+SMTP_PASSWORD=your_app_password
+SMTP_FROM=your_email@gmail.com
+```
+
+---
+
+## Setup & Installation
+
+### Clone the repository
+
+```bash
+git clone https://github.com/31Pritika/Mello.git
+cd Mello
+```
+
+---
+
+### A — Frontend Setup
+
+#### macOS / Linux / WSL
+
+```bash
+# Install Node.js dependencies
+npm install
+
+# Create the frontend .env file
+cp .env.example .env     # then edit .env and add your VITE_GEOAPIFY_KEY
+# OR create it manually:
+echo "VITE_GEOAPIFY_KEY=your_key_here" > .env
+```
+
+#### Windows (PowerShell)
+
+```powershell
+# Install Node.js dependencies
+npm install
+
+# Create the frontend .env file
+echo "VITE_GEOAPIFY_KEY=your_key_here" | Out-File -Encoding utf8 .env
+```
+
+#### Windows (CMD)
+
+```cmd
+npm install
+echo VITE_GEOAPIFY_KEY=your_key_here > .env
+```
+
+---
+
+### B — Backend Setup
+
+#### macOS / Linux / WSL
+
+```bash
+# Navigate to the backend directory
+cd backend
+
+# Create a Python virtual environment
+python3 -m venv venv
+
+# Activate the virtual environment
+source venv/bin/activate
+
+# Install all Python dependencies
+pip install -r requirements.txt
+
+# Create the backend .env file and fill in your values
+cp .env.example .env   # then edit .env
+# OR create it manually with nano/vim:
+nano .env
+```
+
+#### Windows (PowerShell)
+
+```powershell
+# Navigate to the backend directory
+cd backend
+
+# Create a Python virtual environment
+python -m venv venv
+
+# Activate the virtual environment
+.\venv\Scripts\Activate.ps1
+
+# If you get an execution policy error, run this first:
+Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser
+
+# Install all Python dependencies
+pip install -r requirements.txt
+
+# Create the backend .env file (then open and fill in your values)
+New-Item -Name ".env" -ItemType File
+notepad .env
+```
+
+#### Windows (CMD)
+
+```cmd
+cd backend
+
+python -m venv venv
+
+venv\Scripts\activate.bat
+
+pip install -r requirements.txt
+
+copy NUL .env
+notepad .env
+```
+
+---
+
+### C — Database Setup
+
+Mello requires a running PostgreSQL instance. Create a database for the project:
+
+#### macOS / Linux / WSL
+
+```bash
+# Log in to PostgreSQL
+psql -U postgres
+
+# Inside psql, create the database and exit
+CREATE DATABASE mello_db;
+\q
+
+# Update DATABASE_URL in backend/.env:
+# DATABASE_URL=postgresql://postgres:yourpassword@localhost:5432/mello_db
+```
+
+#### Windows (PowerShell / CMD)
+
+```powershell
+# Open psql (adjust path if needed)
+& "C:\Program Files\PostgreSQL\16\bin\psql.exe" -U postgres
+
+# Inside psql:
+# CREATE DATABASE mello_db;
+# \q
+```
+
+> **Note**: Table creation and schema migrations happen **automatically** on backend startup — you do not need to run any migration scripts manually.
+
+---
+
+## Running the Application
+
+You need two terminal windows/tabs running simultaneously.
+
+### Terminal 1 — Start the Backend API
+
+#### macOS / Linux / WSL
+
+```bash
+# From the repo root, navigate to backend
+cd backend
+
+# Activate the virtual environment (if not already active)
+source venv/bin/activate
+
+# Start the FastAPI server
+uvicorn main:app --reload --port 8000
+```
+
+#### Windows (PowerShell)
+
+```powershell
+cd backend
+.\venv\Scripts\Activate.ps1
+uvicorn main:app --reload --port 8000
+```
+
+#### Windows (CMD)
+
+```cmd
+cd backend
+venv\Scripts\activate.bat
+uvicorn main:app --reload --port 8000
+```
+
+The backend API will be available at: **http://localhost:8000**  
+Interactive API docs (Swagger UI): **http://localhost:8000/docs**
+
+---
+
+### Terminal 2 — Start the Frontend Dev Server
+
+#### macOS / Linux / WSL / Windows
+
+```bash
+# From the repo root
+npm run dev
+```
+
+The frontend will be available at: **http://localhost:5173**
+
+---
+
+## User Flow
+
+1. **Landing page** → `http://localhost:5173/`
+2. **Sign up or log in** → `/auth`
+3. **Onboarding** → Pick your city, then search & save your favorite movies, shows, music artists, and books
+4. **Dashboard** → Your Circles appear automatically as matches are found in your city
 
 ---
 
 ## Project Structure
 
 ```
-mello/
-├── src/
+Mello/
+│
+├── .env                        # Frontend environment variables (VITE_*)
+├── index.html                  # Vite HTML entrypoint
+├── package.json                # Node.js dependencies and npm scripts
+├── vite.config.js              # Vite + React + Tailwind configuration
+├── eslint.config.js            # ESLint flat configuration
+│
+├── src/                        # React frontend source
+│   ├── main.jsx                # React DOM entry — mounts <App />
+│   ├── App.jsx                 # Client-side route definitions
+│   ├── index.css               # Global styles and design tokens
+│   │
 │   ├── pages/
-│   │   ├── Landing.jsx          # Cinematic homepage
-│   │   ├── Auth.jsx             # Register, login, magic link, forgot password
-│   │   ├── Onboarding.jsx       # City autocomplete + taste profile setup
-│   │   ├── Dashboard.jsx        # Circle sidebar + Common Room
-│   │   ├── AuthCallback.jsx     # Google OAuth + magic link redirect handler
-│   │   └── ResetPassword.jsx    # Password reset form
+│   │   ├── Landing.jsx         # Landing page (animated glow, philosophy)
+│   │   ├── Auth.jsx            # Login, register, magic link, forgot password
+│   │   ├── AuthCallback.jsx    # Google OAuth & magic link redirect handler
+│   │   ├── ResetPassword.jsx   # Password reset form
+│   │   ├── Onboarding.jsx      # City selection + media taste curation
+│   │   └── Dashboard.jsx       # Circle feeds, posting, reactions, renaming
+│   │
+│   ├── ui/
+│   │   └── CustomCursor.jsx    # Framer Motion animated cursor blob
+│   │
 │   └── utils/
-│       ├── api.js               # All FastAPI calls, JWT storage
-│       ├── matching.js          # Calls POST /match/run
-│       └── circles.js           # Circle utility re-exports
-├── backend/
-│   ├── main.py                  # FastAPI app, CORS, exception handlers
-│   ├── database.py              # SQLAlchemy engine + session
-│   ├── models.py                # 8 SQLAlchemy ORM models
-│   ├── schemas.py               # Pydantic request + response models
-│   ├── auth.py                  # JWT creation, verification, get_current_user
-│   ├── exceptions.py            # Custom exception classes + global handlers
-│   ├── repositories/
-│   │   ├── base.py              # BaseRepository with generic CRUD
-│   │   ├── user_repo.py
-│   │   ├── interest_repo.py
-│   │   ├── content_repo.py      # Cache-first external content logic
-│   │   ├── circle_repo.py
-│   │   └── match_repo.py
-│   ├── routes/
-│   │   ├── auth_routes.py       # /auth/register, /auth/login, /auth/me
-│   │   ├── oauth_routes.py      # Google OAuth, magic link, password reset
-│   │   ├── content_routes.py    # /content/search/*, /content/interests
-│   │   ├── circle_routes.py     # /circles/mine, posts, reactions, rename
-│   │   └── matching_routes.py   # /match/run
-│   └── services/
-│       ├── google_oauth.py      # Google OAuth2 flow
-│       └── email_services.py    # Resend magic link + password reset emails
-└── README.md
+│       ├── api.js              # All fetch calls to the backend (JWT auth)
+│       ├── circles.js          # Circle API re-exports
+│       └── matching.js         # Helper to trigger circle matching
+│
+└── backend/                    # Python FastAPI backend
+    ├── .env                    # Backend secrets and configuration
+    ├── requirements.txt        # Python package dependencies
+    ├── main.py                 # FastAPI app, middleware, router mounts
+    ├── database.py             # SQLAlchemy engine, session, auto-migrations
+    ├── models.py               # ORM models: User, Circle, Post, Interest, etc.
+    ├── schemas.py              # Pydantic request/response schemas
+    ├── auth.py                 # JWT utils, password hashing, auth dependency
+    ├── exceptions.py           # Custom HTTP exceptions and global handlers
+    ├── email_utils.py          # Low-level async SMTP send helper
+    │
+    ├── repositories/           # Data access layer (Repository Pattern)
+    │   ├── base.py             # Generic BaseRepository with CRUD methods
+    │   ├── user_repo.py        # User queries (by email, city, location update)
+    │   ├── content_repo.py     # ContentCache — external media caching layer
+    │   ├── interest_repo.py    # User interests (bulk create, category queries)
+    │   ├── circle_repo.py      # Circles, members, posts, reactions
+    │   └── match_repo.py       # Match score upsert and retrieval
+    │
+    ├── routes/                 # FastAPI routers (API endpoints)
+    │   ├── auth_routes.py      # POST /auth/register, /auth/login, GET /auth/me
+    │   ├── oauth_routes.py     # Re-exports from services/oauth_routes.py
+    │   ├── content_routes.py   # GET /content/search/*, POST /content/interests
+    │   ├── circle_routes.py    # GET /circles/mine, posts, reactions, rename
+    │   └── matching_routes.py  # POST /match/run (city-based circle matching)
+    │
+    └── services/
+        ├── google_oauth.py     # Google OAuth URL generation and token exchange
+        ├── email_services.py   # Magic link & password reset HTML email sending
+        └── oauth_routes.py     # OAuth, magic link, and password reset endpoints
 ```
 
 ---
 
-## Setup
+## Available API Endpoints
 
-### Prerequisites
-
-- Node.js 18+
-- Python 3.12+
-- A [Supabase](https://supabase.com) project
-- API keys for TMDB, Spotify, Google Books, Geoapify, Resend, Google OAuth
+| Method | Endpoint | Description |
+|:-------|:---------|:------------|
+| `GET` | `/` | Health check |
+| `POST` | `/auth/register` | Register a new account |
+| `POST` | `/auth/login` | Log in with email and password |
+| `GET` | `/auth/me` | Get current user profile |
+| `PUT` | `/auth/me` | Update profile (name, bio, city) |
+| `GET` | `/auth/google` | Initiate Google OAuth flow |
+| `GET` | `/auth/google/callback` | Google OAuth callback |
+| `POST` | `/auth/magic-link` | Request a passwordless login link |
+| `POST` | `/auth/verify-token` | Verify magic link or reset token |
+| `POST` | `/auth/forgot-password` | Request password reset email |
+| `POST` | `/auth/reset-password` | Set new password |
+| `GET` | `/content/search/movies` | Search TMDB for movies |
+| `GET` | `/content/search/shows` | Search TMDB for TV shows |
+| `GET` | `/content/search/music` | Search Spotify for artists |
+| `GET` | `/content/search/books` | Search Google Books |
+| `POST` | `/content/interests` | Save selected interests |
+| `GET` | `/content/interests` | Get current user's interests |
+| `POST` | `/match/run` | Run matching and assign to circles |
+| `GET` | `/circles/mine` | Get user's circles |
+| `GET` | `/circles/{id}/posts` | Get posts in a circle |
+| `POST` | `/circles/posts` | Create a post |
+| `POST` | `/circles/posts/react` | React to a post |
+| `PUT` | `/circles/{id}/rename` | Rename a circle |
 
 ---
 
-### Frontend
+## Useful Commands
 
 ```bash
-# Install dependencies
-npm install
+# Frontend
+npm run dev          # Start dev server
+npm run build        # Production build → dist/
+npm run preview      # Preview production build locally
+npm run lint         # Run ESLint
 
-# Create .env in project root
-cp .env.example .env
-# Fill in VITE_GEOAPIFY_KEY
-
-# Start dev server
-npm run dev
+# Backend (from backend/ with venv active)
+uvicorn main:app --reload --port 8000    # Dev server with hot reload
+python -m py_compile main.py            # Syntax check a file
 ```
 
-Runs at `http://localhost:5173`
-
 ---
 
-### Backend
+## Known Quirks
 
-```bash
-cd backend
-
-# Create virtual environment
-python3 -m venv venv
-source venv/bin/activate
-
-# Install dependencies
-pip install fastapi uvicorn sqlalchemy psycopg2-binary python-dotenv
-pip install python-jose[cryptography] passlib[bcrypt] httpx authlib resend
-
-# Create .env in backend/
-cp .env.example .env
-# Fill in all required variables (see Environment Variables below)
-
-# Start server
-uvicorn main:app --reload
-```
-
-Runs at `http://localhost:8000`  
-API docs at `http://localhost:8000/docs`
-
----
-
-### Database
-
-Run the full schema in the Supabase SQL Editor. The schema creates all tables, indexes, constraints, and disables RLS (access control is handled by FastAPI JWT).
-
----
-
-## Environment Variables
-
-### Frontend (`/.env`)
-
-```env
-VITE_GEOAPIFY_KEY=            # City autocomplete — myprojects.geoapify.com
-```
-
-### Backend (`/backend/.env`)
-
-```env
-DATABASE_URL=                 # Supabase direct connection URI (not pooler)
-SECRET_KEY=                   # JWT signing secret — generate with: python -c "import secrets; print(secrets.token_hex(32))"
-
-TMDB_KEY=                     # themoviedb.org → Settings → API
-SPOTIFY_CLIENT_ID=            # developer.spotify.com → Create App
-SPOTIFY_CLIENT_SECRET=        # developer.spotify.com → App Dashboard
-GOOGLE_BOOKS_KEY=             # console.cloud.google.com → Books API → Credentials
-
-GOOGLE_CLIENT_ID=             # console.cloud.google.com → OAuth 2.0 Client ID
-GOOGLE_CLIENT_SECRET=         # console.cloud.google.com → OAuth 2.0 Client Secret
-GOOGLE_REDIRECT_URI=http://localhost:8000/auth/google/callback
-
-RESEND_API_KEY=               # resend.com → API Keys
-RESEND_FROM_EMAIL=            # Must be from a verified domain on Resend
-
-FRONTEND_URL=http://localhost:5173
-```
-
-> **Note:** If your database password contains special characters like `[` or `]`, percent-encode them in the URL: `[` → `%5B`, `]` → `%5D`
-
----
-
-## API Reference
-
-Full interactive documentation available at `/docs` when the server is running.
-
-| Method | Endpoint | Auth | Description |
-|---|---|---|---|
-| POST | `/auth/register` | — | Register with email + password |
-| POST | `/auth/login` | — | Login, returns JWT |
-| GET | `/auth/me` | ✓ | Get current user profile |
-| PUT | `/auth/me` | ✓ | Update profile |
-| GET | `/auth/google` | — | Initiate Google OAuth flow |
-| GET | `/auth/google/callback` | — | Google OAuth callback |
-| POST | `/auth/magic-link` | — | Send passwordless login link |
-| POST | `/auth/verify-token` | — | Verify magic link token |
-| POST | `/auth/forgot-password` | — | Send password reset email |
-| POST | `/auth/reset-password` | — | Reset password with token |
-| GET | `/content/search/movies` | — | Search movies (TMDB, cached) |
-| GET | `/content/search/shows` | — | Search shows (TMDB, cached) |
-| GET | `/content/search/music` | — | Search artists (Spotify, cached) |
-| GET | `/content/search/books` | — | Search books (Google Books, cached) |
-| POST | `/content/interests` | ✓ | Save taste profile |
-| GET | `/content/interests` | ✓ | Get user's saved interests |
-| POST | `/match/run` | ✓ | Run matching algorithm, assign circles |
-| GET | `/circles/mine` | ✓ | Get user's circles |
-| GET | `/circles/{id}/posts` | ✓ | Get circle's Common Room posts |
-| POST | `/circles/posts` | ✓ | Post to Common Room |
-| POST | `/circles/posts/react` | ✓ | React to a post (resonate / love / intrigued) |
-| PUT | `/circles/{id}/rename` | ✓ | Rename a circle |
-
----
-
-## How Matching Works
-
-1. On dashboard load, `POST /match/run` fires for the current user
-2. The algorithm fetches all active users in the same city with their interests preloaded (single query via `joinedload`)
-3. For each category, it computes the set intersection of content IDs between the current user and each city user
-4. Users with overlap ≥ 1 are considered matches; their score and common content are stored in the `matches` table
-5. Matched users are bulk-inserted into a shared Circle per category
-6. Circles have a max capacity of 40 members
-
----
-
-## Database Schema
-
-8 tables: `users`, `content_cache`, `interests`, `circles`, `circle_members`, `posts`, `reactions`, `matches`
-
-Plus normalised lookup tables: `locations`, `categories`, `genres`, `creators`, `languages`, `content_genres`, `interest_moods`, `match_content`, `oauth_accounts`, `auth_tokens`
-
----
-
-## Acknowledgements
-
-Built by **Pritika Agarwal** (160124737023)  
-Department of Information Technology, CBIT Hyderabad  
-2025–2026
+- `backend/matching.py` — legacy prototype, **not used** by the running app
+- `src/ui/LocationInput.jsx` — legacy Mapbox component, **not imported** anywhere
+- `src/pages/ResetPassword.py` / `AuthCallback.py` — JSX files accidentally saved with `.py` extension (duplicates of the `.jsx` files; safe to ignore)
+- `backend/gitignore` — an empty folder created by mistake (not a `.gitignore` file)
+- `backend/__pycache__/` files are tracked in git — you may want to run `git rm --cached backend/__pycache__/` to clean this up
