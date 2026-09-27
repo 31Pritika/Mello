@@ -1,0 +1,28 @@
+# ─── Web Framework ───────────────────────────────────────────────────────────
+fastapi==0.138.0
+uvicorn==0.49.0
+starlette==1.3.1
+
+# ─── Database ────────────────────────────────────────────────────────────────
+SQLAlchemy==2.0.51
+psycopg2-binary==2.9.12
+
+# ─── Data Validation ─────────────────────────────────────────────────────────
+pydantic==2.13.4
+email-validator==2.3.0      # required for pydantic EmailStr
+
+# ─── Authentication & Security ───────────────────────────────────────────────
+python-jose==3.5.0          # JWT creation & verification
+passlib==1.7.4              # password hashing (bcrypt wrapper)
+bcrypt==4.0.1               # bcrypt backend for passlib
+Authlib==1.7.2              # Google OAuth 2.0 (OAuth2Session)
+itsdangerous==2.2.0         # session signing (SessionMiddleware)
+
+# ─── HTTP Client ─────────────────────────────────────────────────────────────
+httpx==0.28.1               # async HTTP — used for TMDB, Spotify, Google Books, Google OAuth
+
+# ─── Email ───────────────────────────────────────────────────────────────────
+aiosmtplib==5.1.2           # async SMTP for magic links & password resets
+
+# ─── Environment / Configuration ─────────────────────────────────────────────
+python-dotenv==1.2.2
