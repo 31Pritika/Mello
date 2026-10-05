@@ -51,10 +51,11 @@ async def search_movies(q: str = Query(...), db: Session = Depends(get_db)):
             "title": m.get("title", ""),
             "cover_image": f"https://image.tmdb.org/t/p/w200{m['poster_path']}" if m.get("poster_path") else None,
             "release_year": int(m["release_date"][:4]) if m.get("release_date") else None,
-            "language": m.get("original_language"),
             "description": m.get("overview"),
-            "genres": [],
-            "extra_data": {"popularity": m.get("popularity")}
+            "extra_data": {
+                "popularity": m.get("popularity"),
+                "language": m.get("original_language"),
+            }
         }
         content = repo.get_or_create(str(m["id"]), "tmdb_movie", data)
         output.append(ContentOut.from_cache(content, "movies"))
@@ -78,10 +79,10 @@ async def search_shows(q: str = Query(...), db: Session = Depends(get_db)):
             "title": s.get("name", ""),
             "cover_image": f"https://image.tmdb.org/t/p/w200{s['poster_path']}" if s.get("poster_path") else None,
             "release_year": int(s["first_air_date"][:4]) if s.get("first_air_date") else None,
-            "language": s.get("original_language"),
             "description": s.get("overview"),
-            "genres": [],
-            "extra_data": {}
+            "extra_data": {
+                "language": s.get("original_language"),
+            }
         }
         content = repo.get_or_create(str(s["id"]), "tmdb_show", data)
         output.append(ContentOut.from_cache(content, "shows"))
@@ -106,10 +107,10 @@ async def search_music(q: str = Query(...), db: Session = Depends(get_db)):
         data = {
             "title": a["name"],
             "cover_image": a["images"][0]["url"] if a.get("images") else None,
-            "genres": a.get("genres", []),
             "extra_data": {
                 "popularity": a.get("popularity"),
-                "followers": a.get("followers", {}).get("total")
+                "followers": a.get("followers", {}).get("total"),
+                "genres": a.get("genres", []),
             }
         }
         content = repo.get_or_create(a["id"], "spotify_artist", data)
@@ -134,12 +135,14 @@ async def search_books(q: str = Query(...), db: Session = Depends(get_db)):
         data = {
             "title": info.get("title", ""),
             "cover_image": info.get("imageLinks", {}).get("thumbnail"),
-            "creator": ", ".join(info.get("authors", [])),
-            "genres": info.get("categories", []),
             "release_year": int(info["publishedDate"][:4]) if info.get("publishedDate") else None,
-            "language": info.get("language"),
             "description": info.get("description"),
-            "extra_data": {"page_count": info.get("pageCount")}
+            "extra_data": {
+                "page_count": info.get("pageCount"),
+                "authors": info.get("authors", []),
+                "language": info.get("language"),
+                "genres": info.get("categories", []),
+            }
         }
         content = repo.get_or_create(b["id"], "google_books", data)
         output.append(ContentOut.from_cache(content, "books"))
@@ -158,14 +161,17 @@ def save_interests(
     if req.city:
         user_repo.update_location(current_user, req.city, req.state, req.country)
 
-    # Bulk fetch/create all content in one operation
+    # Bulk fetch/create all content in one operation.
+    # Only pass plain column fields; store creator/genres in extra_data.
     content_map = content_repo.bulk_get_or_create([
         (item.external_id, item.source, {
             "title": item.title,
             "cover_image": item.cover_image,
-            "creator": item.creator,
-            "genres": item.genres,
             "release_year": item.release_year,
+            "extra_data": {
+                "creator": item.creator,
+                "genres": item.genres,
+            },
         })
         for item in req.items
     ])
@@ -179,6 +185,7 @@ def save_interests(
     saved_titles = interest_repo.bulk_create(current_user.id, items_to_save)
 
     return SaveInterestResponse(saved=len(saved_titles), titles=saved_titles)
+
 
 @router.get("/interests", response_model=List[InterestOut])
 def get_interests(

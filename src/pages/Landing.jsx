@@ -48,15 +48,22 @@ export default function Landing() {
         background: 'rgba(10,7,6,0.85)',
         backdropFilter: 'blur(12px)', zIndex: 100
       }}>
-        <div>
+        <div onClick={() => navigate('/')} style={{ cursor: 'none' }}>
           <div style={{ fontFamily: 'Playfair Display, serif', fontSize: '1.4rem', color: '#EFECE6', letterSpacing: '-0.5px' }}>mello</div>
           <div style={{ fontSize: '9px', letterSpacing: '0.25em', color: '#7D746D', textTransform: 'uppercase', marginTop: '4px' }}>
             Taste Collective // 17.3850° N, 78.4867° E
           </div>
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '5px' }}>
-          {['Discover', 'Cinema', 'Music', 'Reads', 'My Circle', 'Profile'].map((item, i) => (
-            <span key={item} onClick={() => item === 'My Circle' || item === 'Profile' ? navigate('/auth') : null}
+          {[
+            { label: 'Discover', path: '/' },
+            { label: 'Cinema', path: '/cinema' },
+            { label: 'Music', path: '/music' },
+            { label: 'Reads', path: '/reads' },
+            { label: 'My Circle', path: '/auth' },
+            { label: 'Profile', path: '/auth' },
+          ].map(({ label, path }, i) => (
+            <span key={label} onClick={() => navigate(path)}
               style={{
                 fontSize: '9px', letterSpacing: '0.2em',
                 textTransform: 'uppercase', cursor: 'none',
@@ -65,7 +72,7 @@ export default function Landing() {
               }}
               onMouseEnter={e => e.target.style.color = '#EFECE6'}
               onMouseLeave={e => e.target.style.color = i === 0 ? '#C4547A' : '#7D746D'}
-            >{item}</span>
+            >{label}</span>
           ))}
         </div>
       </nav>
@@ -190,7 +197,9 @@ export default function Landing() {
           borderRadius: '4px', overflow: 'hidden'
         }}>
           {circles.map((c, i) => (
-            <div key={i} style={{ background: '#15100E', padding: '1.8rem 1.5rem', transition: 'background 0.4s ease' }}
+            <div key={i}
+              onClick={() => navigate(`/${c.cat.toLowerCase()}`)}
+              style={{ background: '#15100E', padding: '1.8rem 1.5rem', transition: 'background 0.4s ease', cursor: 'none' }}
               onMouseEnter={e => e.currentTarget.style.background = '#1C1512'}
               onMouseLeave={e => e.currentTarget.style.background = '#15100E'}
             >
@@ -244,7 +253,7 @@ export default function Landing() {
         {[
           ['Circles active', '3 near you'],
           ['Latest drop', 'anika_s shared Chungking Express'],
-          ['Taste match', '87% with dhruvnnd'],
+          ['Taste match', '87% with prish.a'],
           ['Location', 'Hyderabad'],
           ['Status', 'Drifting'],
         ].map(([label, val]) => (
