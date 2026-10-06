@@ -47,14 +47,16 @@ async def search_movies(q: str = Query(...), db: Session = Depends(get_db)):
     results = res.json().get("results", [])[:8]
     output = []
     for m in results:
+        rel = m.get("release_date") or ""
         data = {
             "title": m.get("title", ""),
             "cover_image": f"https://image.tmdb.org/t/p/w200{m['poster_path']}" if m.get("poster_path") else None,
-            "release_year": int(m["release_date"][:4]) if m.get("release_date") else None,
+            "release_year": int(rel[:4]) if len(rel) >= 4 and rel[:4].isdigit() else None,
             "description": m.get("overview"),
             "extra_data": {
                 "popularity": m.get("popularity"),
                 "language": m.get("original_language"),
+                "genres": [],
             }
         }
         content = repo.get_or_create(str(m["id"]), "tmdb_movie", data)
@@ -75,13 +77,15 @@ async def search_shows(q: str = Query(...), db: Session = Depends(get_db)):
     results = res.json().get("results", [])[:8]
     output = []
     for s in results:
+        air = s.get("first_air_date") or ""
         data = {
             "title": s.get("name", ""),
             "cover_image": f"https://image.tmdb.org/t/p/w200{s['poster_path']}" if s.get("poster_path") else None,
-            "release_year": int(s["first_air_date"][:4]) if s.get("first_air_date") else None,
+            "release_year": int(air[:4]) if len(air) >= 4 and air[:4].isdigit() else None,
             "description": s.get("overview"),
             "extra_data": {
                 "language": s.get("original_language"),
+                "genres": [],
             }
         }
         content = repo.get_or_create(str(s["id"]), "tmdb_show", data)
@@ -132,14 +136,17 @@ async def search_books(q: str = Query(...), db: Session = Depends(get_db)):
     output = []
     for b in items:
         info = b.get("volumeInfo", {})
+        authors = info.get("authors", [])
+        pub = info.get("publishedDate") or ""
         data = {
             "title": info.get("title", ""),
             "cover_image": info.get("imageLinks", {}).get("thumbnail"),
-            "release_year": int(info["publishedDate"][:4]) if info.get("publishedDate") else None,
+            "release_year": int(pub[:4]) if len(pub) >= 4 and pub[:4].isdigit() else None,
             "description": info.get("description"),
             "extra_data": {
                 "page_count": info.get("pageCount"),
-                "authors": info.get("authors", []),
+                "authors": authors,
+                "creator": ", ".join(authors) if authors else None,
                 "language": info.get("language"),
                 "genres": info.get("categories", []),
             }

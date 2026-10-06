@@ -20,13 +20,39 @@ class ContentRepository(BaseRepository[ContentCache]):
             ContentCache.title.ilike(f"%{query}%")
         ).limit(limit).all()
 
+    @staticmethod
+    def _sanitize_data(data: dict) -> dict:
+        clean = dict(data)
+        extra = dict(clean.get("extra_data") or {})
+
+        if isinstance(clean.get("creator"), str):
+            extra["creator"] = clean.pop("creator")
+        elif "creator" in clean and clean["creator"] is None:
+            clean.pop("creator")
+
+        if isinstance(clean.get("language"), str):
+            extra["language"] = clean.pop("language")
+        elif "language" in clean and clean["language"] is None:
+            clean.pop("language")
+
+        if "genres" in clean:
+            genres_val = clean.get("genres")
+            if genres_val is None or (isinstance(genres_val, list) and all(isinstance(g, str) for g in genres_val)):
+                extra["genres"] = list(genres_val or [])
+                clean.pop("genres")
+
+        if extra or "extra_data" in clean:
+            clean["extra_data"] = extra
+        return clean
+
     def get_or_create(self, external_id: str, source: str, data: dict) -> ContentCache:
+        clean_data = self._sanitize_data(data)
         content = self.get_by_external(external_id, source)
         if content:
-            if (datetime.utcnow() - content.last_fetched_at).days > 7:
-                return self.update(content, **data, last_fetched_at=datetime.utcnow())
+            if content.last_fetched_at and (datetime.utcnow() - content.last_fetched_at).days > 7:
+                return self.update(content, **clean_data, last_fetched_at=datetime.utcnow())
             return content
-        return self.create(external_id=external_id, source=source, **data)
+        return self.create(external_id=external_id, source=source, **clean_data)
 
     def bulk_get_or_create(self, items: list) -> dict:
         # Fetch all existing in one query instead of one query per item
@@ -44,7 +70,8 @@ class ContentRepository(BaseRepository[ContentCache]):
             if key in existing_map:
                 result[key] = existing_map[key]
             else:
-                obj = ContentCache(external_id=external_id, source=source, **data)
+                clean_data = self._sanitize_data(data)
+                obj = ContentCache(external_id=external_id, source=source, **clean_data)
                 new_items.append(obj)
 
         if new_items:

@@ -144,15 +144,46 @@ class ContentOut(BaseModel):
 
     @classmethod
     def from_cache(cls, content, category: str):
+        extra = content.extra_data if isinstance(getattr(content, "extra_data", None), dict) else {}
+
+        if hasattr(content, "creator_name"):
+            creator = content.creator_name
+        elif isinstance(getattr(content, "creator", None), str):
+            creator = content.creator
+        elif getattr(content, "creator", None) is not None and hasattr(content.creator, "name"):
+            creator = content.creator.name
+        else:
+            authors = extra.get("authors")
+            creator = extra.get("creator") or (", ".join(authors) if isinstance(authors, list) and authors else None)
+
+        if hasattr(content, "language_name"):
+            language = content.language_name
+        elif isinstance(getattr(content, "language", None), str):
+            language = content.language
+        elif getattr(content, "language", None) is not None and hasattr(content.language, "name"):
+            language = content.language.name
+        else:
+            language = extra.get("language")
+
+        if hasattr(content, "genre_list"):
+            genres = content.genre_list
+        else:
+            raw_genres = getattr(content, "genres", None) or []
+            genres = [
+                g if isinstance(g, str) else getattr(getattr(g, "genre", None), "name", None)
+                for g in raw_genres
+            ]
+            genres = [g for g in genres if g] or list(extra.get("genres") or [])
+
         return cls(
             external_id=content.external_id,
             source=content.source,
             title=content.title,
             cover_image=content.cover_image,
-            creator=content.creator,
-            genres=content.genres or [],
+            creator=creator,
+            genres=genres,
             release_year=content.release_year,
-            language=content.language,
+            language=language,
             category=category,
             cached_id=str(content.id)
         )
@@ -172,13 +203,27 @@ class InterestOut(BaseModel):
 
     @classmethod
     def from_orm(cls, interest):
+        content = interest.content
+        if content is None:
+            genres = []
+        elif hasattr(content, "genre_list"):
+            genres = content.genre_list
+        else:
+            extra = content.extra_data if isinstance(getattr(content, "extra_data", None), dict) else {}
+            raw_genres = getattr(content, "genres", None) or []
+            genres = [
+                g if isinstance(g, str) else getattr(getattr(g, "genre", None), "name", None)
+                for g in raw_genres
+            ]
+            genres = [g for g in genres if g] or list(extra.get("genres") or [])
+
         return cls(
             id=str(interest.id),
             category=interest.category,
             content_id=str(interest.content_id),
-            title=interest.content.title if interest.content else None,
-            cover_image=interest.content.cover_image if interest.content else None,
-            genres=interest.content.genres if interest.content else [],
+            title=content.title if content else None,
+            cover_image=content.cover_image if content else None,
+            genres=genres,
             status=interest.status,
             rating=interest.rating,
             is_favorite=interest.is_favorite

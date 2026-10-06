@@ -3,7 +3,7 @@ from sqlalchemy.orm import declarative_base, sessionmaker #declarative_base is u
 from dotenv import load_dotenv
 import os
 
-load_dotenv()
+load_dotenv(os.path.join(os.path.dirname(__file__), ".env"))
 
 DATABASE_URL = os.getenv("DATABASE_URL")
 if not DATABASE_URL:
@@ -17,9 +17,25 @@ Base = declarative_base() #parent of all models
 def ensure_required_columns():
     """Backfill columns expected by the ORM against the live database schema."""
     statements = [
+        # users
         "ALTER TABLE IF EXISTS users ADD COLUMN IF NOT EXISTS city TEXT;",
         "ALTER TABLE IF EXISTS users ADD COLUMN IF NOT EXISTS state TEXT;",
         "ALTER TABLE IF EXISTS users ADD COLUMN IF NOT EXISTS country TEXT;",
+        # circles
+        "ALTER TABLE IF EXISTS circles ADD COLUMN IF NOT EXISTS city TEXT;",
+        "ALTER TABLE IF EXISTS circles ADD COLUMN IF NOT EXISTS state TEXT;",
+        "ALTER TABLE IF EXISTS circles ADD COLUMN IF NOT EXISTS country TEXT;",
+        "ALTER TABLE IF EXISTS circles ADD COLUMN IF NOT EXISTS category TEXT DEFAULT 'general';",
+        "ALTER TABLE IF EXISTS circles ADD COLUMN IF NOT EXISTS name TEXT;",
+        "ALTER TABLE IF EXISTS circles ADD COLUMN IF NOT EXISTS description TEXT;",
+        "ALTER TABLE IF EXISTS circles ADD COLUMN IF NOT EXISTS max_members INTEGER DEFAULT 40;",
+        "ALTER TABLE IF EXISTS circles ADD COLUMN IF NOT EXISTS is_active BOOLEAN DEFAULT TRUE;",
+        # matches
+        "ALTER TABLE IF EXISTS matches ADD COLUMN IF NOT EXISTS category TEXT DEFAULT 'general';",
+        "ALTER TABLE IF EXISTS matches ADD COLUMN IF NOT EXISTS common_content JSONB DEFAULT '[]'::jsonb;",
+        # content_cache & interests
+        "ALTER TABLE IF EXISTS content_cache ADD COLUMN IF NOT EXISTS extra_data JSONB DEFAULT '{}'::jsonb;",
+        "ALTER TABLE IF EXISTS interests ADD COLUMN IF NOT EXISTS category TEXT DEFAULT 'general';",
     ]
     with engine.begin() as conn:
         for statement in statements:

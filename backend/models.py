@@ -70,6 +70,66 @@ class ContentCache(Base):
     creator = relationship("Creator", back_populates="content")
     language = relationship("Language", back_populates="content")
 
+    def __init__(self, **kwargs):
+        extra = dict(kwargs.get("extra_data") or {})
+        if isinstance(kwargs.get("creator"), str):
+            extra["creator"] = kwargs.pop("creator")
+        elif "creator" in kwargs and kwargs["creator"] is None:
+            kwargs.pop("creator")
+
+        if isinstance(kwargs.get("language"), str):
+            extra["language"] = kwargs.pop("language")
+        elif "language" in kwargs and kwargs["language"] is None:
+            kwargs.pop("language")
+
+        if "genres" in kwargs:
+            genres_val = kwargs.get("genres")
+            if genres_val is None or (isinstance(genres_val, list) and all(isinstance(g, str) for g in genres_val)):
+                extra["genres"] = list(genres_val or [])
+                kwargs.pop("genres")
+
+        if extra or "extra_data" in kwargs:
+            kwargs["extra_data"] = extra
+
+        super().__init__(**kwargs)
+
+    @property
+    def creator_name(self):
+        if self.creator is not None and hasattr(self.creator, "name"):
+            return self.creator.name
+        if isinstance(self.creator, str):
+            return self.creator
+        extra = self.extra_data if isinstance(self.extra_data, dict) else {}
+        if extra.get("creator"):
+            return extra["creator"]
+        authors = extra.get("authors")
+        if isinstance(authors, list) and authors:
+            return ", ".join(str(a) for a in authors)
+        return None
+
+    @property
+    def language_name(self):
+        if self.language is not None and hasattr(self.language, "name"):
+            return self.language.name
+        if isinstance(self.language, str):
+            return self.language
+        extra = self.extra_data if isinstance(self.extra_data, dict) else {}
+        return extra.get("language")
+
+    @property
+    def genre_list(self):
+        if self.genres:
+            names = [
+                g if isinstance(g, str) else getattr(getattr(g, "genre", None), "name", None)
+                for g in self.genres
+            ]
+            names = [n for n in names if n]
+            if names:
+                return names
+        extra = self.extra_data if isinstance(self.extra_data, dict) else {}
+        genres = extra.get("genres")
+        return list(genres) if isinstance(genres, list) else []
+
 
 # =========================
 # INTERESTS
